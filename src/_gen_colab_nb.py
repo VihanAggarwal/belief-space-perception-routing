@@ -102,50 +102,57 @@ from google.colab import files
 files.download("/content/outputs_colab.zip")
 print("Download started: outputs_colab.zip")
 """),
-    MD("""## 7. (Optional) Track D: RADIATE real adverse weather — no local storage needed
+    MD("""## 7. Track D: RADIATE real adverse weather
 
 The full RADIATE dataset is ~112 GB (radar + lidar + camera over all sequences). You do
-NOT need that. You need the **camera (`zed_left`) of ONE fault-dense sequence** (rain or
-snow), which is a few GB and runs entirely here on Colab's disk so your laptop never
-holds it. After registering at https://pro.hw.ac.uk/radiate/downloads/ and getting
-Dropbox access, get a direct link to one sequence (ideally just its `zed_left` subfolder,
-downloaded as a zip from the Dropbox web UI, then re-shared / put on a Drive link).
+NOT need that: this uses the **camera (`zed_left`) of fault-dense sequences** (rain, snow,
+fog, night), run on Colab so your laptop never holds it.
 
-Set `RADIATE_SEQ_URL` to that link (Dropbox `?dl=1` or a Google Drive file link) and run.
-Or upload a sequence zip with the file picker (set `USE_UPLOAD_RADIATE = True`)."""),
+Three ways to point at one sequence, in priority order:
+1. **Already on Google Drive (recommended if you downloaded there):** run
+   `from google.colab import drive; drive.mount('/content/drive')`, then set
+   `RADIATE_LOCAL_DIR` to the sequence path, e.g.
+   `/content/drive/MyDrive/radiate/rain_4_0` (the folder that contains `zed_left/`).
+2. **A direct link:** set `RADIATE_SEQ_URL` to a Dropbox (`?dl=1`) or Google Drive zip link.
+3. **Upload:** set `USE_UPLOAD_RADIATE = True` to pick a zip from your machine.
+
+Run section 7 once PER condition (change `SEQ_NAME` + the path/link), then send back each
+`outputs_radiate.zip` / `outputs/`."""),
     CODE("""
 import os, subprocess, glob, zipfile
-RADIATE_SEQ_URL = ""             # <-- paste a direct Dropbox/Drive link to ONE sequence (or its zed_left) zip
-USE_UPLOAD_RADIATE = False       # or set True to upload a zip via the file picker
-SEQ_NAME = "radiate_seq"         # label for this sequence
-RADIATE_MAX_FRAMES = 0           # 0 = all; set e.g. 4000 to cap transfer/compute
+RADIATE_LOCAL_DIR = ""           # <-- if already on Drive/Colab disk, set the sequence dir here (skips download)
+RADIATE_SEQ_URL   = ""           # or a direct Dropbox(?dl=1)/Google-Drive zip link
+USE_UPLOAD_RADIATE = False       # or True to upload a zip via the file picker
+SEQ_NAME = "rain_suburban"       # label for this sequence/condition
+RADIATE_MAX_FRAMES = 6000        # 0 = all; ~6000 covers many fault onsets and is plenty to power RQ-H
 
-os.makedirs("data/radiate", exist_ok=True)
-zip_path = f"data/radiate/{SEQ_NAME}.zip"
-if USE_UPLOAD_RADIATE:
-    from google.colab import files
-    up = files.upload()
-    zip_path = "data/radiate/" + list(up.keys())[0]
-elif RADIATE_SEQ_URL:
-    if "drive.google" in RADIATE_SEQ_URL:
-        subprocess.run(["pip", "-q", "install", "gdown"], check=True)
-        import gdown; gdown.download(RADIATE_SEQ_URL, zip_path, quiet=False, fuzzy=True)
-    else:  # Dropbox / direct http
-        url = RADIATE_SEQ_URL.replace("?dl=0", "?dl=1")
-        subprocess.run(["wget", "-q", "-O", zip_path, url], check=True)
+if RADIATE_LOCAL_DIR:
+    seq_root = RADIATE_LOCAL_DIR
 else:
-    raise SystemExit("Set RADIATE_SEQ_URL or USE_UPLOAD_RADIATE first.")
+    os.makedirs("data/radiate", exist_ok=True)
+    zip_path = f"data/radiate/{SEQ_NAME}.zip"
+    if USE_UPLOAD_RADIATE:
+        from google.colab import files
+        up = files.upload(); zip_path = "data/radiate/" + list(up.keys())[0]
+    elif RADIATE_SEQ_URL:
+        if "drive.google" in RADIATE_SEQ_URL:
+            subprocess.run(["pip", "-q", "install", "gdown"], check=True)
+            import gdown; gdown.download(RADIATE_SEQ_URL, zip_path, quiet=False, fuzzy=True)
+        else:
+            subprocess.run(["wget", "-q", "-O", zip_path, RADIATE_SEQ_URL.replace("?dl=0", "?dl=1")], check=True)
+    else:
+        raise SystemExit("Set RADIATE_LOCAL_DIR or RADIATE_SEQ_URL or USE_UPLOAD_RADIATE first.")
+    with zipfile.ZipFile(zip_path) as z:
+        z.extractall(f"data/radiate/{SEQ_NAME}")
+    seq_root = f"data/radiate/{SEQ_NAME}"
 
-with zipfile.ZipFile(zip_path) as z:
-    z.extractall(f"data/radiate/{SEQ_NAME}")
 # locate the sequence dir: prefer one containing zed_left/, else a folder of PNGs
-# (works whether you downloaded a full sequence or just its zed_left camera folder)
-zl = glob.glob(f"data/radiate/{SEQ_NAME}/**/zed_left", recursive=True)
+zl = glob.glob(f"{seq_root}/**/zed_left", recursive=True)
 if zl:
     seq_dir = os.path.dirname(zl[0])
 else:
-    pngs = glob.glob(f"data/radiate/{SEQ_NAME}/**/*.png", recursive=True)
-    seq_dir = os.path.dirname(pngs[0]) if pngs else f"data/radiate/{SEQ_NAME}"
+    pngs = glob.glob(f"{seq_root}/**/*.png", recursive=True)
+    seq_dir = os.path.dirname(pngs[0]) if pngs else seq_root
 print("sequence dir:", seq_dir, "| n PNGs nearby:",
       len(glob.glob(os.path.join(seq_dir, "**", "*.png"), recursive=True)))
 """),
