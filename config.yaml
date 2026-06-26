@@ -105,8 +105,9 @@ contention:
     competitor: second_model_inference   # co-running GPU workload (Colab path)
     competitor_imgsz: 640
     stress_h2d_transfer: true
-    competitor_matmul_dim: 1280   # competitor op size
-    competitor_sleep_s: 0.004     # throttle; tuned so contention is ~2-3x, frontier non-degenerate
+    competitor_matmul_dim: 2048   # competitor op size (tuned for Apple M5 GPU)
+    competitor_sleep_s: 0.001     # throttle; tuned so contention is ~2-3x, frontier non-degenerate
+    mps_competitor_warmup_s: 3.0  # let the separate-process MPS competitor init Metal before timing
   latency_window_frames: 30   # sliding window for p95/p99 and queue depth
   demo_steps: 150             # steps timed per condition in the Phase 1 contention demo
   states: [nominal, contended]

@@ -77,14 +77,76 @@ class CPUContention:
         self._mem = None
 
 
+# Standalone competitor body run in a SEPARATE PROCESS on Apple MPS (see below).
+# Kept as a module-level source string so it can be launched with `python -c`.
+_MPS_COMPETITOR_SRC = r"""
+import sys, time, torch
+kind, dim, sleep_s = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
+dev = torch.device("mps")
+if kind == "compute":
+    a = torch.randn(dim, dim, device=dev)
+    b = torch.randn(dim, dim, device=dev)
+    while True:
+        a = (a @ b).relu() * 1.00001
+        a = a / (a.abs().max() + 1e-3)
+        torch.mps.synchronize()
+        time.sleep(sleep_s)
+else:  # transfer pressure (unified memory, but still drives the copy engine)
+    host = torch.randn(32, 1024, 1024)  # ~128 MB
+    while True:
+        _ = host.to(dev)
+        torch.mps.synchronize()
+        time.sleep(sleep_s)
+"""
+
+
 class GPUContention:
-    """Co-running GPU workload (SM + bandwidth competition) plus H2D transfer pressure."""
+    """Co-running GPU workload (SM + bandwidth competition) plus H2D transfer pressure.
+
+    On CUDA the competitor runs in background threads (separate CUDA streams handle
+    concurrency fine). On Apple MPS that is unsafe: Metal command buffers are not
+    thread-safe, so encoding competitor kernels from a second thread while the main
+    thread runs inference trips an `MTLCommandBufferStatusCommitted` assertion and
+    aborts the process. So on MPS the competitor runs in a separate PROCESS, which
+    gets its own Metal command queue and still contends for the physical GPU.
+    """
 
     def __init__(self, cfg: dict, device: str = "cuda"):
         self.cfg = cfg
         self.device = device
         self._threads = []
+        self._procs = []
         self._flag = _StopFlag()
+
+    # --- MPS: separate-process competitor -------------------------------------
+    def _spawn_mps(self):
+        import subprocess
+        import sys
+        g = self.cfg["contention"]["gpu"]
+        dim = str(int(g.get("competitor_matmul_dim", 2048)))
+        sleep_s = str(float(g.get("competitor_sleep_s", 0.0005)))
+        kinds = ["compute"]
+        if g.get("stress_h2d_transfer", True):
+            kinds.append("transfer")
+        for kind in kinds:
+            p = subprocess.Popen(
+                [sys.executable, "-c", _MPS_COMPETITOR_SRC, kind, dim, sleep_s],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            self._procs.append(p)
+        # Let the child processes import torch and initialize Metal so they are
+        # actually contending before any latency is timed.
+        time.sleep(float(g.get("mps_competitor_warmup_s", 3.0)))
+
+    def _stop_mps(self):
+        for p in self._procs:
+            p.terminate()
+        for p in self._procs:
+            try:
+                p.wait(timeout=3.0)
+            except Exception:
+                p.kill()
+        self._procs.clear()
 
     def _compute_worker(self):
         import time as _t
@@ -120,6 +182,11 @@ class GPUContention:
 
     def __enter__(self):
         self._flag.stop = False
+        # MPS is not thread-safe for command encoding: run the competitor in a
+        # separate process so it has its own Metal command queue.
+        if self.device == "mps":
+            self._spawn_mps()
+            return self
         t = threading.Thread(target=self._compute_worker, daemon=True)
         t.start()
         self._threads.append(t)
@@ -131,6 +198,9 @@ class GPUContention:
 
     def __exit__(self, *exc):
         self._flag.stop = True
+        if self.device == "mps":
+            self._stop_mps()
+            return
         for t in self._threads:
             t.join(timeout=2.0)
         self._threads.clear()
