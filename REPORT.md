@@ -132,3 +132,31 @@ align with degradation; both coupling regimes and both tracks generate.
 
 **Verdict: PASS.** Contention shift measurable, faults present and labeled, regimes
 separated. Proceeding to Phase 2.
+
+---
+
+## Phase 2: sensor fault belief estimator (real)
+
+**Criteria:** P(z=faulted) tracks the fault windows with small lag; state the lag and a
+tracking criterion numerically. If beliefs do not track, RQ-A1 is compromised for a
+boring reason -- flag it.
+
+**Results:**
+- Track A (real): the illumination channel produced a labeled fault segment and the
+  belief tracked it with **lag 0 frames, balanced accuracy 0.95** (TPR 0.95, TNR 0.96).
+  Blur and occlusion produced **no** Track A segments on this slice -- the
+  `turnpike_afternoon_fall` degradation is illumination-dominated (canopy/sun/shadow),
+  and the global-shutter rectified camera shows little motion blur and high optical-flow
+  track survival on the open trail. This is a property of the data, not an estimator
+  failure.
+- Track B (controlled injection, known timeline): validates the two channels Track A
+  did not exercise -- **blur lag 2.5 frames, balanced acc 0.96; occlusion lag 5.0
+  frames, balanced acc 0.97** (the seed-0 plan placed blur and occlusion events). These
+  are validation aids, clearly labeled, not headline numbers.
+- Tracking criterion: belief crosses 0.5 inside the fault window within < 6 frames and
+  frame-level balanced accuracy >= 0.9. Met on every channel that had a segment.
+
+**Verdict: PASS.** Beliefs track faults at small lag and high accuracy across all three
+channels (illumination via real Track A; blur + occlusion via Track B). The persistence
+premise (RQ-A1) is not compromised by poor tracking. Per-channel/track belief plots in
+`outputs/phase2/`.
