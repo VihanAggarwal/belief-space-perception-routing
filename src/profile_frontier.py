@@ -42,17 +42,35 @@ CHANS = ["blur", "illumination", "occlusion"]
 CONFIG_KEYS = ["C1", "C2", "C3", "C4"]
 
 
+def _empty_cache(device: str):
+    import torch
+    try:
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        elif device == "mps":
+            torch.mps.empty_cache()
+    except Exception:
+        pass
+
+
+def _is_oom(err: Exception) -> bool:
+    msg = str(err).lower()
+    return "out of memory" in msg or "oom" in msg or "mps backend out of memory" in msg
+
+
 def _run_config_over_frames(detector, frames, conf):
     """Return list[Detection] for the config over the given BGR frames, with
-    per-config CPU fallback on CUDA OOM (flagged dev-only)."""
-    import torch
+    per-config CPU fallback on GPU OOM (CUDA or MPS), flagged dev-only."""
     dets = []
     fell_back = False
+    dev = detector.device
     for img in frames:
         try:
             dets.append(detector.predict(img, conf=conf))
-        except torch.cuda.OutOfMemoryError:
-            torch.cuda.empty_cache()
+        except RuntimeError as e:
+            if not _is_oom(e):
+                raise
+            _empty_cache(dev)
             detector.device = "cpu"; detector.half = False
             detector.load()
             fell_back = True
@@ -121,7 +139,7 @@ def main() -> int:
     ref_dets, c1_fb = _run_config_over_frames(c1, frames, conf)
     lat_c1_nom = _latency_dist(c1, lat_frames, cfg, device, contended=False)
     lat_c1_con = _latency_dist(c1, lat_frames, cfg, device, contended=True)
-    del c1; torch.cuda.empty_cache()
+    del c1; _empty_cache(device)
 
     deadline_ms = float(np.median(lat_c1_nom) * 1e3 * cfg["deadline"]["multiplier"])
 
@@ -143,7 +161,7 @@ def main() -> int:
             lc = _latency_dist(det, lat_frames, cfg, device, contended=True)
             lat_dists[key] = {"nominal": ln, "contended": lc}
             fallbacks[key] = fb
-            del det; torch.cuda.empty_cache()
+            del det; _empty_cache(device)
 
         # per-frame agreement vs C1
         f1s = np.array([ag.agreement_f1(dets[i], ref_dets[i], iou)["f1"]

@@ -16,3 +16,4 @@ rosbags
 tqdm
 python-dotenv
 lz4
+requests
