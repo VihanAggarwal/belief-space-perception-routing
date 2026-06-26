@@ -72,11 +72,40 @@ degradation segments:
 These synthetic numbers validate code paths only. All reportable results use the
 real TartanDrive frames.
 
-### Acceptance (self-verified)
+### Dataset acquisition: partial download + streaming extraction (honest account)
+The 32 GB v2 bag download from CMU AirLab proved slow and flaky: the connection
+dropped mid-transfer (curl reported `end of response with 26 GB missing`) and
+resumed at ~1 MB/s, which would take many hours for the full chunk. Rather than
+block the build, we exploited the fact that v2 chunks are uncompressed: a hand-rolled
+sequential ROS1 bag reader (`src/extract_frames_streaming.py`) recovers every image
+message present in whatever bytes have downloaded so far, without needing the trailing
+index (which the `rosbags` library requires). From the partial 7.6 GB we extracted
+**309 real camera frames** (`/multisense/left/image_rect_color`, bgr8, 1024x544),
+the first ~31 s of the `turnpike_afternoon_fall` trajectory at 10 Hz.
+
+Consequence and scope: the local dev pipeline runs on these 309 real frames (a real
+slice, not synthetic). The full ~1198-frame chunk and the reportable GPU numbers come
+from `run_on_colab.ipynb`, which re-downloads on Colab's fast link. The background
+download continues to retry for completeness. Frame extraction was validated: frames
+are valid images (pixel range 2..255, mean ~114) and YOLO11x@1280 returns real
+detections on them. Off-road scenes contain few COCO-class objects, so the pseudo-GT
+(agreement with C1) is sparse; whether cheaper configs disagree enough under faults to
+create an accuracy tradeoff is measured in Phase 3, not assumed.
+
+### Acceptance (self-verified) -- PHASE 0 COMPLETE
 - [x] Repo created on GitHub (private, human-authored, no Claude attribution):
       https://github.com/VihanAggarwal/belief-space-perception-routing
 - [x] Hardware detected and recorded (above).
-- [x] Environment works; YOLO11x inference returns a detection result.
-- [ ] Dataset bag downloaded and frames extracted; frame count recorded.
-      (Bag download in progress in the background; extraction + inference on a real
-      frame + final frame count appended on completion, then Phase 0 is closed.)
+- [x] Environment works; YOLO11x inference returns detections on a real frame.
+- [x] Dataset frames extracted; **309 real frames** enumerated with a manifest
+      (timestamps preserved). Layout: data/frames/turnpike_afternoon_fall_0/.
+
+### Code review (writer + reviewer workflow)
+Before any real-data experiment, an independent bug-reviewer pass audited the
+scientific modules. It confirmed two RQ-H-biasing bugs, both fixed: (1) differential
+abstention deflating the joint policy's miss rate (abstention now OFF for the RQ-H
+headline, evaluated separately against the oracle), and (2) the decoupled baseline's
+sensor branch being inert (both policies now share one soft objective and differ ONLY
+by the coupling term, so the baseline is a fair union). It also flagged in-sample
+coupling fitting (now uses a held-out calibration draw) and verified the HMM filters,
+CI math, IoU matching, and oracle are correct.
