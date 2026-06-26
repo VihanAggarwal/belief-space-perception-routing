@@ -122,8 +122,22 @@ python src/extract_frames.py        # extract frames from the bag
 python src/run_pipeline.py          # end-to-end (after later phases land)
 ```
 
-## Status
+## Status: complete (local dev slice)
 
-Built phase by phase. See `REPORT.md` for the current state, per-phase
-self-assessments with quantitative pass/fail criteria, and honest diagnoses of any
-acceptance criterion that did not pass.
+All seven phases ran end-to-end on a real 309-frame TartanDrive 2.0 slice. See
+`REPORT.md` for per-phase self-assessments and `WRITEUP.md` for the results and
+limitations draft. Headline findings (5 seeds, 95% CIs; latencies dev-only, reportable
+numbers via `run_on_colab.ipynb`):
+
+- **RQ-H (headline): small positive, coupling-driven.** The joint policy reduces
+  deadline-miss by **1.73 pp [0.48, 2.99]** vs the decoupled baseline in the coupled
+  regime, and by **0.0 pp** in the uncoupled control, at matched accuracy. The benefit
+  appears only where the coupling is real, so the coupling drives it. Magnitude modest,
+  reported as such, not oversold.
+- **RQ-A1 (kill-switch): not statistically supported on this slice (underpowered).**
+  Persistence halves the switch rate in point estimate but the CI includes 0; resolve
+  on the full trajectory.
+- **RQ-A2: tradeoff, not dominance.** Model-derived hysteresis is 4x more responsive
+  under non-stationary arrival but switches more.
+
+This is a falsification study: negatives and modest effects are reported plainly.
