@@ -25,6 +25,15 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # Contention generators
 # ---------------------------------------------------------------------------
+def _sync(device: str):
+    """Device-appropriate synchronize: CUDA, Apple MPS, or no-op on CPU."""
+    import torch
+    if device == "cuda":
+        torch.cuda.synchronize()
+    elif device == "mps":
+        torch.mps.synchronize()
+
+
 class _StopFlag:
     def __init__(self):
         self.stop = False
@@ -93,7 +102,7 @@ class GPUContention:
             # does NOT build an unbounded kernel backlog (which would make a
             # co-running step's synchronize() block pathologically). sleep_s tunes
             # the contention intensity so the frontier stays non-degenerate.
-            torch.cuda.synchronize()
+            _sync(self.device)
             _t.sleep(sleep_s)
 
     def _transfer_worker(self):
@@ -102,10 +111,11 @@ class GPUContention:
         g = self.cfg["contention"]["gpu"]
         sleep_s = float(g.get("competitor_sleep_s", 0.0005))
         dev = torch.device(self.device)
-        host = torch.randn(32, 1024, 1024, pin_memory=True)  # ~128 MB
+        pin = self.device == "cuda"  # pinned host memory is a CUDA feature
+        host = torch.randn(32, 1024, 1024, pin_memory=pin)  # ~128 MB
         while not self._flag.stop:
-            _ = host.to(dev, non_blocking=True)
-            torch.cuda.synchronize()
+            _ = host.to(dev, non_blocking=pin)
+            _sync(self.device)
             _t.sleep(sleep_s)
 
     def __enter__(self):
@@ -127,7 +137,8 @@ class GPUContention:
 
 
 def make_contention(cfg: dict, device: str):
-    return GPUContention(cfg, device) if device == "cuda" else CPUContention(cfg)
+    # GPU-appropriate contention for CUDA and Apple MPS; CPU stress otherwise.
+    return GPUContention(cfg, device) if device in ("cuda", "mps") else CPUContention(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -146,8 +157,7 @@ def default_step_fn(device: str) -> Callable[[], None]:
         y = x
         for _ in range(8):
             y = torch.nn.functional.conv2d(y, w, padding=1).relu()
-        if device == "cuda":
-            torch.cuda.synchronize()
+        _sync(device)
         return float(y.mean().item())
 
     return step

@@ -42,20 +42,30 @@ def abspath(rel: str) -> Path:
 
 
 def resolve_device(cfg: dict) -> str:
-    """Return 'cuda' or 'cpu'. 'auto' picks cuda when torch sees a GPU."""
+    """Return 'cuda', 'mps', or 'cpu'. 'auto' prefers CUDA, then Apple MPS, then CPU."""
     mode = cfg.get("device", {}).get("mode", "auto")
     if mode == "cpu":
         return "cpu"
     try:
         import torch
+        cuda = torch.cuda.is_available()
+        mps = getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
         if mode == "cuda":
-            return "cuda" if torch.cuda.is_available() else "cpu"
+            return "cuda" if cuda else "cpu"
+        if mode == "mps":
+            return "mps" if mps else "cpu"
         # auto
-        return "cuda" if torch.cuda.is_available() else "cpu"
+        if cuda:
+            return "cuda"
+        if mps:
+            return "mps"
+        return "cpu"
     except Exception:
         return "cpu"
 
 
 def half_supported(device: str) -> bool:
-    """fp16 is only a meaningful axis on GPU. On CPU it collapses to fp32."""
+    """fp16 is a meaningful axis only on CUDA. On CPU it collapses to fp32, and on
+    Apple MPS fp16 inference is unreliable for this study, so we treat the precision
+    axis as CUDA-only and run fp32 on MPS/CPU (documented in the write-up)."""
     return device == "cuda"

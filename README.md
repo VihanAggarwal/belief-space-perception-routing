@@ -114,13 +114,24 @@ REPORT.md              running self-assessment, per-phase verdicts, diagnoses
 
 ## Reproducing
 
+Full platform-specific instructions are in **[RUNNING.md](RUNNING.md)** (Google Colab
+NVIDIA GPU, and Mac Apple-Silicon MPS), including how to download the dataset. This
+project uses pretrained YOLO11 and does NOT train from scratch; "running" fits the
+belief models and runs the profiling + experiments.
+
+Quick start (NVIDIA / Windows shown; see RUNNING.md for Mac and Colab):
+
 ```
-python -m venv .venv && .venv/Scripts/activate    # Windows
+python -m venv .venv && .venv/Scripts/activate            # Windows
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-python src/extract_frames.py        # extract frames from the bag
-python src/run_pipeline.py          # end-to-end (after later phases land)
+python src/download_data.py          # fetch a ~32 GB TartanDrive2 bag chunk
+python src/extract_frames.py         # bag -> PNG frames + manifest
+python src/run_pipeline.py --skip-extract   # Phases 1-6 end to end
 ```
+
+On a Mac, install torch with `pip install torch torchvision` (no CUDA index) so you get
+the Metal/MPS build; the device auto-selects `mps`. See RUNNING.md.
 
 ## Status: complete (local dev slice)
 
