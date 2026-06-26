@@ -46,6 +46,12 @@ seeds: [0, 1, 2, 3, 4]
 experiments:
   n_contention_draws: 5
   ci_percent: 95
+  # Per-seed sensor measurement noise (std in robust-z units) added to the
+  # degradation observations. The real frames are identical across seeds, so this
+  # is the source of sensor-side variance for CIs and is exactly the condition
+  # under which persistence (RQ-A1) is tested: belief filters noise, memoryless
+  # reacts to it. Applied identically to the belief and memoryless detectors.
+  observation_noise_std: 0.15
 
 # --- Per-frame degradation observations (Phase 1) -----------------------------
 degradation:
@@ -97,6 +103,8 @@ contention:
     competitor: second_model_inference   # co-running GPU workload (Colab path)
     competitor_imgsz: 640
     stress_h2d_transfer: true
+    competitor_matmul_dim: 1280   # competitor op size
+    competitor_sleep_s: 0.004     # throttle; tuned so contention is ~2-3x, frontier non-degenerate
   latency_window_frames: 30   # sliding window for p95/p99 and queue depth
   demo_steps: 150             # steps timed per condition in the Phase 1 contention demo
   states: [nominal, contended]
@@ -136,7 +144,7 @@ deadline:
   # reference config C1 under NOMINAL compute. Filled by Phase 3, not by hand.
   rule: median_C1_end_to_end_latency_nominal
   multiplier: 1.0
-  value_ms: null
+  value_ms: 740.375
 
 # --- Compute HMM (Phase 3) ----------------------------------------------------
 compute_hmm:
@@ -179,6 +187,7 @@ routing:
       target_false_transition_rate: 0.02
   abstention:
     reliability_threshold: 0.85
+  accuracy_floor: 0.5     # a frame is oracle-infeasible if no config meets BOTH deadline and this accuracy
 
 logging:
   level: INFO
