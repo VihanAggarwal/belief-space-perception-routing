@@ -138,12 +138,16 @@ else:
 
 with zipfile.ZipFile(zip_path) as z:
     z.extractall(f"data/radiate/{SEQ_NAME}")
-# find the dir that actually contains zed_left/
-cands = [os.path.dirname(p) for p in glob.glob(f"data/radiate/{SEQ_NAME}/**/zed_left", recursive=True)]
-seq_dir = cands[0] if cands else f"data/radiate/{SEQ_NAME}"
-print("sequence dir:", seq_dir, "| has zed_left:", os.path.isdir(os.path.join(seq_dir, "zed_left")))
-os.environ["RADIATE_SEQ_DIR"] = seq_dir
-os.environ["RADIATE_MAX_FRAMES"] = str(RADIATE_MAX_FRAMES)
+# locate the sequence dir: prefer one containing zed_left/, else a folder of PNGs
+# (works whether you downloaded a full sequence or just its zed_left camera folder)
+zl = glob.glob(f"data/radiate/{SEQ_NAME}/**/zed_left", recursive=True)
+if zl:
+    seq_dir = os.path.dirname(zl[0])
+else:
+    pngs = glob.glob(f"data/radiate/{SEQ_NAME}/**/*.png", recursive=True)
+    seq_dir = os.path.dirname(pngs[0]) if pngs else f"data/radiate/{SEQ_NAME}"
+print("sequence dir:", seq_dir, "| n PNGs nearby:",
+      len(glob.glob(os.path.join(seq_dir, "**", "*.png"), recursive=True)))
 """),
     CODE("""
 # Extract rectified left frames, then run the FULL pipeline on Track D.
@@ -153,6 +157,7 @@ import os, shutil
 !python src/extract_radiate.py --seq-dir "{seq_dir}" --max-frames {RADIATE_MAX_FRAMES}
 frames_dir = "data/frames/radiate_" + os.path.basename(seq_dir.rstrip("/"))
 os.environ["FRAMES_DIR"] = frames_dir
+os.environ["PROFILE_N"] = "0"     # profile ALL extracted frames so RQ-H sees many fault onsets
 print("running pipeline on", frames_dir)
 !python src/run_pipeline.py --skip-extract
 shutil.make_archive("/content/outputs_radiate", "zip", "outputs")
