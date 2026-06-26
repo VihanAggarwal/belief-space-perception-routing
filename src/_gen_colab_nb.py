@@ -102,6 +102,63 @@ from google.colab import files
 files.download("/content/outputs_colab.zip")
 print("Download started: outputs_colab.zip")
 """),
+    MD("""## 7. (Optional) Track D: RADIATE real adverse weather — no local storage needed
+
+The full RADIATE dataset is ~112 GB (radar + lidar + camera over all sequences). You do
+NOT need that. You need the **camera (`zed_left`) of ONE fault-dense sequence** (rain or
+snow), which is a few GB and runs entirely here on Colab's disk so your laptop never
+holds it. After registering at https://pro.hw.ac.uk/radiate/downloads/ and getting
+Dropbox access, get a direct link to one sequence (ideally just its `zed_left` subfolder,
+downloaded as a zip from the Dropbox web UI, then re-shared / put on a Drive link).
+
+Set `RADIATE_SEQ_URL` to that link (Dropbox `?dl=1` or a Google Drive file link) and run.
+Or upload a sequence zip with the file picker (set `USE_UPLOAD_RADIATE = True`)."""),
+    CODE("""
+import os, subprocess, glob, zipfile
+RADIATE_SEQ_URL = ""             # <-- paste a direct Dropbox/Drive link to ONE sequence (or its zed_left) zip
+USE_UPLOAD_RADIATE = False       # or set True to upload a zip via the file picker
+SEQ_NAME = "radiate_seq"         # label for this sequence
+RADIATE_MAX_FRAMES = 0           # 0 = all; set e.g. 4000 to cap transfer/compute
+
+os.makedirs("data/radiate", exist_ok=True)
+zip_path = f"data/radiate/{SEQ_NAME}.zip"
+if USE_UPLOAD_RADIATE:
+    from google.colab import files
+    up = files.upload()
+    zip_path = "data/radiate/" + list(up.keys())[0]
+elif RADIATE_SEQ_URL:
+    if "drive.google" in RADIATE_SEQ_URL:
+        subprocess.run(["pip", "-q", "install", "gdown"], check=True)
+        import gdown; gdown.download(RADIATE_SEQ_URL, zip_path, quiet=False, fuzzy=True)
+    else:  # Dropbox / direct http
+        url = RADIATE_SEQ_URL.replace("?dl=0", "?dl=1")
+        subprocess.run(["wget", "-q", "-O", zip_path, url], check=True)
+else:
+    raise SystemExit("Set RADIATE_SEQ_URL or USE_UPLOAD_RADIATE first.")
+
+with zipfile.ZipFile(zip_path) as z:
+    z.extractall(f"data/radiate/{SEQ_NAME}")
+# find the dir that actually contains zed_left/
+cands = [os.path.dirname(p) for p in glob.glob(f"data/radiate/{SEQ_NAME}/**/zed_left", recursive=True)]
+seq_dir = cands[0] if cands else f"data/radiate/{SEQ_NAME}"
+print("sequence dir:", seq_dir, "| has zed_left:", os.path.isdir(os.path.join(seq_dir, "zed_left")))
+os.environ["RADIATE_SEQ_DIR"] = seq_dir
+os.environ["RADIATE_MAX_FRAMES"] = str(RADIATE_MAX_FRAMES)
+"""),
+    CODE("""
+# Extract rectified left frames, then run the FULL pipeline on Track D.
+# (seq_dir and RADIATE_MAX_FRAMES are Python globals from the previous cell; IPython
+# interpolates {var} into ! lines. FRAMES_DIR is passed to the subprocess via os.environ.)
+import os, shutil
+!python src/extract_radiate.py --seq-dir "{seq_dir}" --max-frames {RADIATE_MAX_FRAMES}
+frames_dir = "data/frames/radiate_" + os.path.basename(seq_dir.rstrip("/"))
+os.environ["FRAMES_DIR"] = frames_dir
+print("running pipeline on", frames_dir)
+!python src/run_pipeline.py --skip-extract
+shutil.make_archive("/content/outputs_radiate", "zip", "outputs")
+from google.colab import files; files.download("/content/outputs_radiate.zip")
+print("Track D done. Report achieved fault-onset counts (printed in Phase 1) per condition.")
+"""),
     MD("""## Notes for the write-up
 - Report the GPU model printed in cell 1 (e.g., Tesla T4 16 GB / A100 40 GB).
 - All latency numbers in `outputs/phase3/` and the deadline in `config.yaml`
