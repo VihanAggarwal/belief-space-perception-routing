@@ -80,27 +80,33 @@ class GPUContention:
     def _compute_worker(self):
         import time as _t
         import torch
+        g = self.cfg["contention"]["gpu"]
+        dim = int(g.get("competitor_matmul_dim", 2048))
+        sleep_s = float(g.get("competitor_sleep_s", 0.0005))
         dev = torch.device(self.device)
-        a = torch.randn(2048, 2048, device=dev)
-        b = torch.randn(2048, 2048, device=dev)
+        a = torch.randn(dim, dim, device=dev)
+        b = torch.randn(dim, dim, device=dev)
         while not self._flag.stop:
             a = (a @ b).relu() * 1.00001
             a = a / (a.abs().max() + 1e-3)
             # synchronize each iteration so the competitor keeps the GPU busy but
             # does NOT build an unbounded kernel backlog (which would make a
-            # co-running step's synchronize() block pathologically).
+            # co-running step's synchronize() block pathologically). sleep_s tunes
+            # the contention intensity so the frontier stays non-degenerate.
             torch.cuda.synchronize()
-            _t.sleep(0.0005)
+            _t.sleep(sleep_s)
 
     def _transfer_worker(self):
         import time as _t
         import torch
+        g = self.cfg["contention"]["gpu"]
+        sleep_s = float(g.get("competitor_sleep_s", 0.0005))
         dev = torch.device(self.device)
         host = torch.randn(32, 1024, 1024, pin_memory=True)  # ~128 MB
         while not self._flag.stop:
             _ = host.to(dev, non_blocking=True)
             torch.cuda.synchronize()
-            _t.sleep(0.0005)
+            _t.sleep(sleep_s)
 
     def __enter__(self):
         self._flag.stop = False
