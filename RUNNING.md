@@ -176,3 +176,14 @@ You must obtain these yourself — they cannot be auto-downloaded:
 Notes: RADIATE frames are 672x376; the reference config upscales to its imgsz (1280),
 documented. The contention/coupling machinery is reused unchanged (coupling on Track D
 is a designed modeling assumption, like the other tracks).
+
+### Disk space: you do NOT need the full 112 GB
+The full RADIATE dataset (~112 GB) is radar + lidar + camera over all sequences. This
+project uses **camera only** (`zed_left`), and only **one or two fault-dense sequences**.
+Practical options if local space is tight:
+- **Best:** run Track D on Colab (section 7 of `run_on_colab.ipynb`) so the data lives on
+  Colab's disk, not your laptop. Paste a link to one sequence and run.
+- Download just the `zed_left/` subfolder of one rain/snow sequence from the Dropbox web
+  UI (a few GB, not 112), since radar/lidar are the bulk and are never used.
+- Cap frames with `--max-frames N` in `extract_radiate.py` (a few thousand frames still
+  has many fault onsets, enough to power RQ-H).
