@@ -363,3 +363,46 @@ the human places them under `data/radiate/<seq>/` (see RUNNING.md), run
 `python src/extract_radiate.py --seq-dir data/radiate/<seq>` then the pipeline with
 `FRAMES_DIR=data/frames/radiate_<seq>`. Per-condition counts and the powered results
 will be appended then.
+
+---
+
+## Patch v3 RESULTS: RADIATE rain (Track D, real adverse weather) — the real-data RQ-H test
+
+Run locally on `rain_4_0` (2,651 real rain frames from `Downloads/Data UTRC`, left ZED
+rectified to camera_left_rect), 1,500-frame experiment window, 5 seeds, 95% CIs.
+Outputs in `outputs/trackD_rain_4_0/`. Latencies dev-env (RTX A500), not reportable; the
+RQ-H comparison is the result. Track D deadline (this run): 136.3 ms.
+
+**Power (the whole reason for RADIATE):** the 1,500-frame window has **13 fault-onset
+events** (all occlusion-channel: rain droplets on the lens dropping optical-flow track
+survival), vs TartanDrive's ~1. Real fault fraction 26% (window) / 44% (full sequence).
+Contention p95 shift 3.73x. Regime separation clean: coupled r=0.76, uncoupled r=0.01.
+
+**RQ-H (real rain): SMALL POSITIVE, coupling-driven, control clean.**
+| regime    | kappa | joint miss | decoupled miss | reduction 95% CI            |
+|-----------|-------|-----------|----------------|-----------------------------|
+| coupled   | 0.82  | 0.453     | 0.467          | **+1.39 pp [0.98, 1.80], sig** |
+| uncoupled | 0.02  | 0.573     | 0.573          | 0.00 pp [0.00, 0.00], n.s.  |
+
+Modeling the coupling reduces deadline-miss by 1.39 pp on real rain (CI excludes 0) and
+by exactly 0 in the uncoupled control. This is the **first real-data RQ-H test with
+more than one onset**, and it agrees with TartanDrive's coupled direction (which was
++1.73 pp but CI-fragile on a single segment) and the synthetic sweep. Magnitude modest
+and reported as such; 13 onsets is a real improvement over 1 but still modest (more
+power would come from longer/combined sequences — snow/fog/night pending).
+
+**RQ-A1 (real rain): NOT SUPPORTED, and in the opposite direction.** At matched detection
+accuracy the persistent belief detector switches MORE than memoryless (0.030 vs 0.018,
+diff -0.012, CI [-0.013,-0.011]). Honest negative: on rain's rapidly fluctuating
+droplet-occlusion signal, the HMM belief (with measurement noise) crosses the 0.5
+decision boundary more often than the instantaneous signal at its matched operating
+point, so persistence does not reduce chattering here. The persistence premise is not
+supported on this real regime; reported plainly, not tuned away.
+
+**RQ-A2:** unchanged from the controlled-arrival experiment (track-independent by design):
+model-derived hysteresis is far more responsive under non-stationary arrival (onset-to-
+reconfig 1.6 vs 6.6 frames) but switches ~30% more. Tradeoff, not dominance.
+
+**Verdict:** the headline coupling result (RQ-H) generalizes to real adverse weather, at
+modest magnitude, with a clean uncoupled control. RQ-A1 (persistence) does not hold on
+rain. Snow/fog/night and longer windows are the natural next runs (locally or on Colab).
