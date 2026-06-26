@@ -1,0 +1,33 @@
+# Data and large artifacts (never commit raw dataset or extracted frames)
+data/raw/
+data/frames/
+data/cache/
+*.bag
+*.tar
+*.tar.gz
+*.zip
+
+# Model weights
+*.pt
+*.onnx
+*.engine
+weights/
+
+# Python env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Local env file
+.env
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+
+# Allow outputs (plots/tables) to be committed for review, but ignore bulky intermediates
+outputs/cache/
+outputs/**/*.npy
