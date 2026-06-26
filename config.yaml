@@ -144,7 +144,7 @@ deadline:
   # reference config C1 under NOMINAL compute. Filled by Phase 3, not by hand.
   rule: median_C1_end_to_end_latency_nominal
   multiplier: 1.0
-  value_ms: 740.375
+  value_ms: 772.341
 
 # --- Compute HMM (Phase 3) ----------------------------------------------------
 compute_hmm:

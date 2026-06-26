@@ -160,3 +160,41 @@ boring reason -- flag it.
 channels (illumination via real Track A; blur + occlusion via Track B). The persistence
 premise (RQ-A1) is not compromised by poor tracking. Per-channel/track belief plots in
 `outputs/phase2/`.
+
+---
+
+## Phase 3: compute estimator and Pareto frontier (real)
+
+**Criteria:** configs trade off sensibly (cheaper = faster, lower fault-robustness);
+state the ordering and the deadline; flag a degenerate frontier.
+
+**Results (dev-env latency, NOT reportable; from outputs/phase3/frontier_table.csv):**
+- Deadline = median C1-nominal latency (locked rule, multiplier 1.0) = **772.3 ms**.
+- Latency ordering sensible: nominal medians C4 151 < C2 187 < C3 208 < C1 772 ms
+  (`ordering_sensible=True`). Under contention: C1 1389, C2 912, **C3 712, C4 657**.
+- Routing pressure is REAL and non-degenerate under contention: C1 and C2 miss the
+  772 ms deadline when contended; C3 and C4 meet it. (The `phase3_summary.json`
+  `degenerate` flag was mis-defined to check nominal feasibility, which is true by
+  construction; the corrected definition -- no separation under contention -- gives
+  non-degenerate here. Flag definition fixed in `profile_frontier.py`.)
+- Accuracy (agreement-with-C1) is non-degenerate: C1 1.00 (reference), **C2 0.749,
+  C3 0.720, C4 0.717** overall. There is a real ~0.28 accuracy cost to the cheapest
+  config, so routing faces a genuine accuracy-vs-deadline tradeoff.
+- Notable, reported honestly: under illumination faults the cheap-config agreement
+  RISES to 0.809 (vs ~0.68 nominal), because in dark frames the reference C1 also
+  detects fewer objects, so cheap configs agree more easily. Blur/occlusion buckets
+  are empty (no Track A segments on this slice). Implication: on this pseudo-GT,
+  faults do not widen the accuracy gap; the sensor belief's value for routing is
+  therefore its PREDICTIVE coupling with contention, not an independent accuracy
+  signal. This sharpens RQ-H: absent coupling, the sensor belief cannot help routing,
+  so the fair decoupled baseline is legitimately compute-driven (not a strawman).
+
+**Routing-policy consequence (decided here, before running RQ-H):** with the deadline
+at C1's nominal median, C1 is ~50% feasible uncontended. The policy therefore uses
+predicted-compute-state median feasibility (config feasible in a state if its median
+latency there meets the deadline), then picks max accuracy among feasible. So
+predicted-nominal -> C1, predicted-contended -> C3. Joint and decoupled differ only in
+how the predicted state is formed (coupling-fused vs compute-only).
+
+**Verdict: PASS** (frontier non-degenerate under contention; deadline reported;
+accuracy axis real). `run_on_colab.ipynb` produces the reportable GPU version.

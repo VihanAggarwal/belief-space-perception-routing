@@ -139,10 +139,25 @@ def model_derived_dwell(false_transition_rate_target: float, p_self_transition: 
 # weighting), not a strawman, and isolates the coupling as the sole difference (RQ-H).
 def _choose(fm: FrontierModel, s_belief: float, p_cont: float, rt: float,
             hysteresis: "Hysteresis", allow_abstain: bool) -> str:
-    if allow_abstain and max(fm.p_meet_given(c, p_cont) for c in CONFIG_KEYS) < rt:
+    """Predicted-compute-state feasibility, then maximum accuracy among feasible.
+
+    The deadline is the median C1-nominal latency (locked rule), so feasibility in a
+    state is "the config's median latency in that state meets the deadline", i.e.
+    p_meet[c][state] >= 0.5. The predicted state is the MAP of p_cont. This realizes
+    the spec's intent: C1 is usable when compute is predicted nominal and is dropped
+    when contention is predicted, while cheaper configs remain feasible. The joint and
+    decoupled differ ONLY in how p_cont (hence the predicted state) is formed, so any
+    deadline-miss gap is attributable to the coupling.
+    """
+    state = "contended" if p_cont >= 0.5 else "nominal"
+    pmeet = {c: fm.p_meet[c][state] for c in CONFIG_KEYS}
+    # abstain only if no config even reaches the reliability target in the predicted state
+    if allow_abstain and max(pmeet.values()) < rt:
         return hysteresis.step(ABSTAIN)
-    best = max(CONFIG_KEYS,
-               key=lambda c: fm.exp_accuracy(c, s_belief) * fm.p_meet_given(c, p_cont))
+    feasible = [c for c in CONFIG_KEYS if pmeet[c] >= 0.5]
+    if not feasible:
+        feasible = [max(CONFIG_KEYS, key=lambda c: pmeet[c])]  # safest available
+    best = max(feasible, key=lambda c: fm.exp_accuracy(c, s_belief))
     return hysteresis.step(best)
 
 
