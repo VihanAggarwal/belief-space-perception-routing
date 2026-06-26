@@ -109,3 +109,26 @@ sensor branch being inert (both policies now share one soft objective and differ
 by the coupling term, so the baseline is a fair union). It also flagged in-sample
 coupling fitting (now uses a held-out calibration draw) and verified the HMM filters,
 CI math, IoU matching, and oracle are correct.
+
+---
+
+## Phase 1: data harness, degradation, contention, regimes (real, 309 frames)
+
+**Criteria:** contention produces a measurable p95/p99 shift under load; fault labels
+align with degradation; both coupling regimes and both tracks generate.
+
+**Results (real frames):**
+- Degradation + deterministic threshold-and-smooth labels: **30.4% of frames flagged
+  faulted** across blur/illumination/occlusion. The first ~31 s of the trajectory
+  contains real degradation, so the experiments have genuine fault structure.
+- Contention generator (GPU-appropriate: co-running GPU workload + H2D pressure):
+  **p95 142 -> 358 ms (2.52x), p99 163 -> 390 ms** under load. Saved
+  `outputs/phase1/contention_shift.png`. (Dev-env latency, not reportable.)
+- Coupling regimes well separated: **coupled** Pearson r=0.74 (P(contention|fault)=0.81
+  vs P(contention|nominal)=0.07); **uncoupled** r=0.06 (fault-independent). This is the
+  separation RQ-H requires: a regime where the coupling is real and one where it is not.
+- Both tracks generated: Track A (real, headline) and Track B (controlled injection,
+  3 events, validation-only). Overlays saved to `outputs/phase1/`.
+
+**Verdict: PASS.** Contention shift measurable, faults present and labeled, regimes
+separated. Proceeding to Phase 2.
