@@ -31,3 +31,6 @@ Thumbs.db
 # Allow outputs (plots/tables) to be committed for review, but ignore bulky intermediates
 outputs/cache/
 outputs/**/*.npy
+
+# dev-run logs (transient)
+outputs/_*.log
