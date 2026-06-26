@@ -249,3 +249,39 @@ preemption window (the ~3-frame onset-to-contention lag x the number of fault on
 extremely laggy on this slice, so the decoupled is not far behind. The effect would
 likely be larger with a longer trajectory (more onsets), a longer onset-to-contention
 lag, or denser task-relevant detections. These are stated as scope, not excuses.
+
+---
+
+## Phase 6: RQ-A1 kill-switch and RQ-A2 ablation (real, 5 seeds, 95% CI)
+
+### RQ-A1: persistence (belief) vs memoryless, at matched detection accuracy
+**Result:** at matched detection balanced-accuracy (belief 0.950 vs memoryless 0.950),
+belief halves the config-switch rate in point estimate (**0.011 vs 0.022**), but the
+paired difference is **0.011, 95% CI [-0.012, 0.033], NOT significant**
+(`outputs/phase6/rqa1_switching.png`).
+
+**Verdict: NOT SUPPORTED (honest negative / underpowered).** The direction favors
+persistence (belief switches about half as often), but on the 300-frame slice the
+effect is not statistically distinguishable from zero. Diagnosis: this slice has few
+fault onsets, hence few config switches, hence high relative variance across the five
+seeds; the test is underpowered, not the premise refuted. We do not claim the
+persistence benefit on this data. The full ~1198-frame trajectory (Colab) has more
+onsets and is the natural way to resolve this; flagged as the follow-up. Per the
+falsification stance, RQ-H remains the headline regardless.
+
+### RQ-A2: fixed vs model-derived hysteresis, stationary and non-stationary arrival
+(Controlled fault arrival, labeled like Track B; isolates the hysteresis mechanism.)
+
+| arrival        | fixed switch | model-derived switch | switch diff (fixed-md) 95% CI | fixed lag | md lag |
+|----------------|--------------|----------------------|-------------------------------|-----------|--------|
+| stationary     | 0.029        | 0.033                | -0.004 [-0.009, 0.001] n.s.   | 1.40      | 1.10   |
+| nonstationary  | 0.034        | 0.045                | -0.010 [-0.016,-0.005] sig    | 6.60      | 1.60   |
+
+**Verdict: TRADEOFF, not dominance (honest).** Under non-stationary fault arrival the
+model-derived dwell is markedly more responsive -- onset-to-reconfiguration lag **1.6
+vs 6.6 frames** (a 4x improvement) -- but at the cost of ~30% more switches
+(significant). Under stationary arrival the two are statistically indistinguishable.
+So the model-derived hysteresis does NOT Pareto-dominate a fixed dwell; it buys much
+faster adaptation under non-stationarity by switching more. This is the honest answer
+to RQ-A2: the model-derived dwell adapts to non-stationary arrival (its intended
+behavior) but trades switching for responsiveness rather than dominating.
