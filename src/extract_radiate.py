@@ -79,7 +79,12 @@ def main() -> int:
     seq = abspath(args.seq_dir)
     left = seq / "zed_left"
     if not left.is_dir():
-        print(f"ERROR: no zed_left/ under {seq}", file=sys.stderr); return 2
+        # allow pointing directly at a folder of camera PNGs (e.g. a downloaded
+        # zed_left/ on its own, without the parent sequence structure)
+        if sorted(seq.glob("*.png")):
+            left = seq
+        else:
+            print(f"ERROR: no zed_left/ and no *.png under {seq}", file=sys.stderr); return 2
     frames = sorted(left.glob("*.png"))
     if args.max_frames:
         frames = frames[: args.max_frames]
