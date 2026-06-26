@@ -318,3 +318,48 @@ RQ-A2 (both arrival regimes), per-method operating points plus switching, reconf
 latency, and abstention statistics, a results+limitations draft tracing every claim to
 an artifact, and `run_on_colab.ipynb` for the reportable GPU numbers. No Claude
 attribution anywhere; commits authored solely by the human.
+
+---
+
+## Patch v3: RADIATE (Track D, real adverse-weather) — integration + sample verification
+
+**Why:** the TartanDrive real run (Track A) produced a null by data sparsity (one fault
+segment, RQ-H delta 0.0pp). RADIATE has continuous adverse-weather video (rain, fog,
+snow, night) with many fault-onset events, so RQ-H becomes testable on real data.
+
+**Access gate (handled honestly).** The full RADIATE sequences require registration at
+https://pro.hw.ac.uk/radiate/downloads/ (organizational/academic email + CC BY-NC-SA
+license acceptance + email verification -> Dropbox invitation). This cannot be passed
+autonomously, so the full fault-dense sequences (rain/snow/night) are NOT auto-downloaded
+here. The publicly-offered sample (a short foggy clip, no registration) WAS downloaded
+and is used to build and verify Track D end-to-end; it is attached to the repo as a
+GitHub Release asset (`radiate-sample`).
+
+**Integration (reuses the existing normal-lens pipeline, no rebuild).**
+- `src/extract_radiate.py` rectifies the left ZED image to `camera_left_rect` exactly as
+  radiate_sdk's `get_rectfied()` (stereoRectify + initUndistortRectifyMap + remap;
+  calibration vendored in `config/radiate-calib.yaml`), and writes the SAME PNG +
+  manifest.csv format as `extract_frames.py`. So Phases 1-6 run on Track D unchanged by
+  pointing `FRAMES_DIR` at the output. Radar/lidar/annotations unused; pseudo-GT is
+  YOLO11x on camera, same as other tracks.
+- Normal-lens degradation estimators (var-of-Laplacian blur, histogram-entropy
+  illumination, optical-flow occlusion) are valid on RADIATE's rectilinear frames and
+  reused as-is. Fault labels via the same deterministic threshold-and-smooth rule (no
+  per-frame GT, unlike Track C's soiling masks).
+
+**Sample verification (public foggy clip, 50 frames, 672x376, 15 fps).**
+- Rectified left camera stream iterates with real timestamps (Unix epoch ns from
+  zed_left.txt). Confirmed readable.
+- YOLO11x@1280 returns sensible detections on the upscaled foggy frames (vehicles:
+  class 6 and class 2 across sampled frames). Pseudo-GT well-defined. Upscaling 672x376
+  -> 1280 documented.
+- Degradation channels behave sanely on real fog: blur mean 3.8 (low = hazy),
+  illumination entropy 7.1, occlusion survival 0.86. As expected for a short uniform-fog
+  clip, the labeler finds ~1 segment (no weather transitions in 50 frames).
+
+**Status:** Track D plumbing complete and verified on real RADIATE frames. The POWERED
+RQ-H / RQ-A1 / RQ-A2 run requires the full fault-dense sequences (rain/snow/night); once
+the human places them under `data/radiate/<seq>/` (see RUNNING.md), run
+`python src/extract_radiate.py --seq-dir data/radiate/<seq>` then the pipeline with
+`FRAMES_DIR=data/frames/radiate_<seq>`. Per-condition counts and the powered results
+will be appended then.

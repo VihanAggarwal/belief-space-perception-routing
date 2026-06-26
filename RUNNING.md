@@ -133,3 +133,46 @@ laptop GPU and will likely need a smaller `competitor_sleep_s` on a Colab A100.
 - `outputs/phase5/rqh_centerpiece.png` (the headline RQ-H figure)
 - `outputs/phase6/` RQ-A1 and RQ-A2 figures
 - `REPORT.md` per-phase verdicts; `WRITEUP.md` results + limitations
+
+---
+
+## 5. Track D: RADIATE (real adverse weather) — getting the data and running it
+
+RADIATE (Heriot-Watt, CC BY-NC-SA 4.0) is real rain/snow/fog/night driving video. It is
+the fault-dense real-data regime that powers RQ-H (TartanDrive was too fault-sparse).
+Radar/lidar/annotations are unused; we use only the left ZED camera, rectified to
+`camera_left_rect`, with YOLO11x pseudo-GT (same as every track).
+
+**The full sequences are gated** (registration + academic email + license). The repo
+ships a **runnable public sample** (a short foggy clip) as a GitHub Release asset.
+
+### Quick taste (public sample, no registration)
+```bash
+# download the sample attached to the repo's release
+gh release download radiate-sample -D data/radiate            # -> data/radiate/tiny_foggy.zip
+cd data/radiate && unzip -o tiny_foggy.zip && cd ../..
+python src/extract_radiate.py --seq-dir data/radiate/tiny_foggy
+FRAMES_DIR=data/frames/radiate_tiny_foggy python src/run_pipeline.py --skip-extract
+```
+(50 frames of uniform fog: this verifies the Track D plumbing; it is too short for a
+powered RQ-H result.)
+
+### Full fault-dense sequences (for the powered RQ-H / RQ-A1 / RQ-A2)
+You must obtain these yourself — they cannot be auto-downloaded:
+1. Go to https://pro.hw.ac.uk/radiate/downloads/ and **fill the registration form**
+   with an organizational/academic email; accept the CC BY-NC-SA license.
+2. Verify your email; you receive a **Dropbox invitation** with the sequences.
+3. Download the fault-dense ones: **Rain (Suburban)**, **Snow (Suburban)**,
+   **Night (Motorway)**, and a **Fog** sequence.
+4. Unzip each into `data/radiate/<sequence_name>/` (so it contains `zed_left/`).
+5. Extract + run per sequence:
+   ```bash
+   python src/extract_radiate.py --seq-dir data/radiate/<sequence_name>
+   FRAMES_DIR=data/frames/radiate_<sequence_name> python src/run_pipeline.py --skip-extract
+   ```
+6. The pipeline writes RQ-H/RQ-A1/RQ-A2 to `outputs/`. Report the achieved fault-onset
+   counts per condition (printed in Phase 1) next to the results.
+
+Notes: RADIATE frames are 672x376; the reference config upscales to its imgsz (1280),
+documented. The contention/coupling machinery is reused unchanged (coupling on Track D
+is a designed modeling assumption, like the other tracks).
