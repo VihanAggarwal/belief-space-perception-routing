@@ -15,6 +15,10 @@ CODE = lambda s: {"cell_type": "code", "metadata": {}, "execution_count": None,
 cells = [
     MD("""# Belief-Space Perception Routing: reportable GPU run (Colab)
 
+**This notebook is for Google Colab (NVIDIA GPU) only.** To run on a **Mac (Apple
+Silicon / MPS)** or **Windows/NVIDIA**, do not use this notebook -- follow the
+"Running it" section of `README.md`, or `RUNNING.md`, in the repo (per-platform steps).
+
 Run this on a Colab **GPU** runtime (Runtime -> Change runtime type -> T4 or A100).
 It produces the reportable profiling, latency, and experiment numbers. Locally
 measured laptop latencies are dev-only and are never the reported result.
