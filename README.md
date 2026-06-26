@@ -112,26 +112,68 @@ run_on_colab.ipynb     reportable GPU profiling + latency (Phase 3)
 REPORT.md              running self-assessment, per-phase verdicts, diagnoses
 ```
 
-## Reproducing
+## Running it (Google Colab and Mac)
 
-Full platform-specific instructions are in **[RUNNING.md](RUNNING.md)** (Google Colab
-NVIDIA GPU, and Mac Apple-Silicon MPS), including how to download the dataset. This
-project uses pretrained YOLO11 and does NOT train from scratch; "running" fits the
-belief models and runs the profiling + experiments.
+This project uses **pretrained YOLO11 and does not train a model from scratch** (a
+locked design choice: the contribution is the routing/belief system). "Running" means
+fitting the belief estimators, profiling the config frontier, and running the RQ-H /
+RQ-A1 / RQ-A2 experiments. Two environments are supported below. The same steps are in
+**[RUNNING.md](RUNNING.md)** with extra detail (contention tuning, troubleshooting).
 
-Quick start (NVIDIA / Windows shown; see RUNNING.md for Mac and Colab):
+The dataset (~32 GB bag chunks) is not in the repo; both paths download it.
+
+### Option A: Google Colab (NVIDIA GPU) — gives the reportable latency numbers
+
+1. Open **`run_on_colab.ipynb`** in Google Colab.
+2. **Runtime -> Change runtime type -> T4 or A100 GPU**, then **Connect**.
+3. **Run all cells, top to bottom.** When the "get the code" cell runs it asks for a
+   **GitHub personal access token with `repo` scope** (the repo is private) so it can
+   clone. Create one at GitHub -> Settings -> Developer settings -> Personal access
+   tokens -> Fine-grained or classic, with repo access. (Alternative: set
+   `USE_UPLOAD = True` in that cell and upload a zip of `src/` + `config.yaml`.)
+4. The notebook then automatically: installs deps, downloads a TartanDrive 2.0 bag
+   chunk, extracts frames, and runs Phase 1, Phase 3 (frontier + deadline), and Phases
+   4-6 (RQ-H, RQ-A1, RQ-A2) with GPU-appropriate contention.
+5. The last cell zips `outputs/` and downloads it. The figures (e.g.
+   `outputs/phase5/rqh_centerpiece.png`) and tables are the results.
+6. To run the FULL trajectory instead of a subset, set `profiling.n_frames: 0` in
+   `config.yaml` before the profiling cell.
+
+### Option B: Mac with Apple Silicon GPU (M1/M2/M3/M4, Metal/MPS)
+
+```bash
+git clone https://github.com/VihanAggarwal/belief-space-perception-routing.git
+cd belief-space-perception-routing
+
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install torch torchvision          # IMPORTANT on Mac: default wheel = Metal/MPS,
+                                       # do NOT use the CUDA --index-url
+pip install -r requirements.txt
+
+python -c "import torch; print('mps available:', torch.backends.mps.is_available())"
+
+python src/download_data.py            # download a ~32 GB bag chunk (resumable)
+python src/extract_frames.py           # bag -> PNG frames + manifest
+python src/run_pipeline.py --skip-extract   # runs Phases 1-6 on the Apple GPU
+```
+
+On Mac the device auto-selects `mps`. The precision (fp16) axis is CUDA-only, so
+configs run fp32 on a Mac (resolution still varies); this is disclosed in the write-up.
+After Phase 1, check `outputs/phase1/contention_summary.json` -> `p95_shift_ratio`
+(want ~2x-3x); if needed, tune `contention.gpu.competitor_sleep_s` in `config.yaml`
+(see RUNNING.md, section 3).
+
+### Windows / NVIDIA (development environment used here)
 
 ```
-python -m venv .venv && .venv/Scripts/activate            # Windows
+python -m venv .venv && .venv\Scripts\activate
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-python src/download_data.py          # fetch a ~32 GB TartanDrive2 bag chunk
-python src/extract_frames.py         # bag -> PNG frames + manifest
-python src/run_pipeline.py --skip-extract   # Phases 1-6 end to end
+python src/download_data.py && python src/extract_frames.py
+python src/run_pipeline.py --skip-extract
 ```
-
-On a Mac, install torch with `pip install torch torchvision` (no CUDA index) so you get
-the Metal/MPS build; the device auto-selects `mps`. See RUNNING.md.
 
 ## Status: complete (local dev slice)
 
