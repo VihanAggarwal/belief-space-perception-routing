@@ -34,3 +34,6 @@ outputs/**/*.npy
 
 # dev-run logs (transient)
 outputs/_*.log
+
+# RADIATE dataset (Track D, not committed)
+data/radiate/
