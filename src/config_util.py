@@ -29,6 +29,8 @@ def load_config(path: str | None = None) -> dict:
         paths["raw_bag"] = os.environ["RAW_BAG"]
     if os.getenv("FRAMES_DIR"):
         paths["frames_dir"] = os.environ["FRAMES_DIR"]
+    if os.getenv("OUTPUTS_DIR"):
+        paths["outputs_dir"] = os.environ["OUTPUTS_DIR"]
     if os.getenv("DATA_ROOT"):
         paths["data_root"] = os.environ["DATA_ROOT"]
     if os.getenv("DEVICE"):
