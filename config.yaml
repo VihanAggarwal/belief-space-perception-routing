@@ -98,6 +98,7 @@ contention:
     competitor_imgsz: 640
     stress_h2d_transfer: true
   latency_window_frames: 30   # sliding window for p95/p99 and queue depth
+  demo_steps: 150             # steps timed per condition in the Phase 1 contention demo
   states: [nominal, contended]
 
 # --- Coupling regimes (Phase 1) ----------------------------------------------
@@ -120,6 +121,15 @@ configs:
   C3: { model: yolo11n, imgsz: 1280, half: true }
   C4: { model: yolo11n, imgsz: 640,  half: true }
 reference_config: C1
+
+profiling:
+  # Local correctness runs profile on a subset (dev-only, not reportable). Colab
+  # profiles the full set. Set n_frames: 0 to use all extracted frames.
+  n_frames: 300
+  latency_sample_frames: 60   # frames timed per (config, compute-state) for the latency dist
+  iou_threshold: 0.5          # IoU for matched-detection agreement vs C1
+  conf_threshold: 0.25
+  oom_fallback_cpu: true      # if a GPU config OOMs (e.g., C1@1280 on 4GB), fall back to CPU and flag dev-only
 
 deadline:
   # Rule (locked, section 0a): deadline = median end-to-end latency of the
@@ -145,6 +155,12 @@ sensor_hmm:
     stay_nominal: 0.92
     stay_faulted: 0.90
   emission: gaussian_per_state
+  # how the binary fault labels are expanded into a 4-state sequence for fitting:
+  label_onset_frames: 3       # first frames of a segment count as 'degrading'
+  label_recovery_frames: 5    # frames just after a segment count as 'recovering'
+  min_emission_std: 0.3       # floor on per-state Gaussian std for stability
+  transition_laplace: 1.0     # smoothing on fitted transition counts
+  decision_threshold: 0.5     # P(faulted)+P(degrading) crossing for lag measurement
 
 # --- Routing, baselines, hysteresis, abstention (Phase 4) --------------------
 routing:
