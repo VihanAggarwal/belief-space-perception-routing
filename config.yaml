@@ -34,9 +34,11 @@ dataset:
   nominal_fps: 10.0
 
 device:
-  # auto resolves to cuda if available else cpu. On CPU the precision axis (fp16)
-  # collapses to fp32 and is reported as not measurable locally (see run_on_colab).
-  mode: auto
+  # auto resolves to cuda if available, then Apple MPS, then cpu. On CPU/MPS the
+  # precision axis (fp16) collapses to fp32 and is reported as not measurable
+  # locally (see run_on_colab). Set to mps here for this Apple M5 MacBook Pro so
+  # the Metal GPU is used; override with DEVICE=cpu/cuda in .env if needed.
+  mode: mps
   reportable_env_note: >
     Reportable latency numbers come from run_on_colab.ipynb on a GPU. Locally
     measured latencies are dev-environment only and are never the final result.

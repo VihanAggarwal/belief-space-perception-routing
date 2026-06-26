@@ -60,9 +60,11 @@ reportable latencies + full-data RQ results can be folded into `WRITEUP.md`.
 
 ---
 
-## 2. Mac with Apple Silicon GPU (M1/M2/M3/M4, Metal/MPS)
+## 2. Mac with Apple Silicon GPU (M1/M2/M3/M4/M5, Metal/MPS)
 
-Requires macOS on Apple Silicon and Python 3.11.
+Requires macOS on Apple Silicon and Python 3.11+ (tested on Python 3.12 on an
+Apple M5). `config.yaml` ships with `device.mode: mps` so the Metal GPU is used by
+default on this machine.
 
 ```bash
 # 1) clone (you have collaborator access)
@@ -71,7 +73,7 @@ cd belief-space-perception-routing
 
 # 2) environment (NOTE: on Mac use the DEFAULT torch wheel, which ships Metal/MPS;
 #    do NOT use the CUDA --index-url that requirements.txt mentions for NVIDIA)
-python3.11 -m venv .venv
+python3.12 -m venv .venv      # or python3.11
 source .venv/bin/activate
 pip install --upgrade pip
 pip install torch torchvision            # default macOS wheel includes MPS
