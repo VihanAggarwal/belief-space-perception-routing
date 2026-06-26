@@ -285,3 +285,36 @@ So the model-derived hysteresis does NOT Pareto-dominate a fixed dwell; it buys 
 faster adaptation under non-stationarity by switching more. This is the honest answer
 to RQ-A2: the model-derived dwell adapts to non-stationary arrival (its intended
 behavior) but trades switching for responsiveness rather than dominating.
+
+---
+
+## Phase 7: write-up and limitations
+
+`WRITEUP.md` drafts the results and limitations, leading with RQ-H and treating
+RQ-A1/RQ-A2 as supporting ablations. Consolidated per-method operating points
+(deadline-miss vs accuracy with CIs) in `outputs/phase7/results_summary.png` and
+`.csv`. Every quantitative claim traces to a specific artifact:
+- RQ-H: `outputs/phase5/rqh_centerpiece.png`, `phase5_rqh.json`
+- RQ-A1: `outputs/phase6/rqa1_switching.png`, `phase6_results.json`
+- RQ-A2: `outputs/phase6/rqa2_hysteresis.png`, `phase6_results.json`
+- frontier + deadline: `outputs/phase3/frontier.png`, `frontier_table.csv`
+- contention shift, fault overlays, regimes: `outputs/phase1/`
+- belief tracking: `outputs/phase2/`
+
+### Final summary of findings (all on the 309-frame real dev slice; reportable = Colab)
+- **RQ-H (headline): small positive, coupling-driven, mechanism confirmed.** Joint
+  beats decoupled by **1.73 pp deadline-miss [0.48, 2.99]** in the coupled regime at
+  matched accuracy, and by **0.0 pp** in the uncoupled control. Modest magnitude,
+  reported as such.
+- **RQ-A1: not statistically supported on this slice (underpowered).** Belief halves
+  the switch rate in point estimate (0.011 vs 0.022) at matched accuracy, but CI
+  includes 0. Honest negative; full trajectory is the resolution.
+- **RQ-A2: tradeoff, not dominance.** Model-derived hysteresis is 4x more responsive
+  under non-stationary arrival (lag 1.6 vs 6.6 frames) but switches ~30% more.
+
+**Definition of done met:** reproducible offline pipeline answering RQ-H over 5 seeds
+with CIs (both regimes, centerpiece figure), supported by RQ-A1 (honest go/no-go) and
+RQ-A2 (both arrival regimes), per-method operating points plus switching, reconfig
+latency, and abstention statistics, a results+limitations draft tracing every claim to
+an artifact, and `run_on_colab.ipynb` for the reportable GPU numbers. No Claude
+attribution anywhere; commits authored solely by the human.
