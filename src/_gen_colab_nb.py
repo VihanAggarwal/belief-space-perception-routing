@@ -171,6 +171,53 @@ shutil.make_archive("/content/outputs_radiate", "zip", "outputs")
 from google.colab import files; files.download("/content/outputs_radiate.zip")
 print("Track D done. Report achieved fault-onset counts (printed in Phase 1) per condition.")
 """),
+    MD("""## 8. Track D BATCH: run all RADIATE weather conditions on Colab Pro
+
+Turnkey loop over your RADIATE sequence zips on Google Drive. For each: extract only the
+camera (`zed_left`), rectify, run the full pipeline (RQ-H/RQ-A1/RQ-A2) with its own
+namespaced `outputs/trackD_<name>/`, then free the space. Finally bundle every
+condition's outputs into one download.
+
+First put your `Data UTRC` zips on Google Drive (e.g. `MyDrive/Data UTRC/`). The default
+list is ONE sequence per weather condition (the scientific unit); flip `RUN_ALL_ZIPS` to
+True to run every sequence (many hours). `MAX_FRAMES_PER_SEQ` bounds each run."""),
+    CODE("""
+from google.colab import drive; drive.mount('/content/drive')
+RADIATE_ZIP_DIR = "/content/drive/MyDrive/Data UTRC"   # folder with rain_4_0.zip, snow_1_0.zip, ...
+RUN_ALL_ZIPS = False            # False = one representative sequence per weather condition
+MAX_FRAMES_PER_SEQ = 5000       # bound per sequence (Colab Pro handles it); 0 = all frames
+DEFAULT_ONE_PER_CONDITION = ["rain_4_0", "snow_1_0", "fog_6_0", "night_1_0"]
+
+import os, glob, zipfile, shutil, subprocess
+all_zips = sorted(glob.glob(os.path.join(RADIATE_ZIP_DIR, "*.zip")))
+all_zips = [z for z in all_zips if "tiny_foggy" not in os.path.basename(z)]
+if RUN_ALL_ZIPS:
+    zips = all_zips
+else:
+    zips = [z for z in all_zips if os.path.splitext(os.path.basename(z))[0] in DEFAULT_ONE_PER_CONDITION]
+print("will run:", [os.path.basename(z) for z in zips])
+
+for z in zips:
+    name = os.path.splitext(os.path.basename(z))[0]
+    dst = f"data/radiate/{name}"
+    if not os.path.isdir(os.path.join(dst, "zed_left")):
+        os.makedirs(dst, exist_ok=True)
+        with zipfile.ZipFile(z) as zf:   # camera only, to save Colab disk
+            members = [m for m in zf.namelist() if m.startswith("zed_left/") or m == "zed_left.txt"]
+            zf.extractall(dst, members or None)
+    subprocess.run(["python", "src/extract_radiate.py", "--seq-dir", dst,
+                    "--max-frames", str(MAX_FRAMES_PER_SEQ)], check=False)
+    frames = f"data/frames/radiate_{name}"
+    env = dict(os.environ, FRAMES_DIR=frames, OUTPUTS_DIR=f"outputs/trackD_{name}", PROFILE_N="0")
+    print(f"=== running pipeline: {name} ===")
+    subprocess.run(["python", "src/run_pipeline.py", "--skip-extract"], env=env, check=False)
+    shutil.rmtree(dst, ignore_errors=True)        # free the extracted camera
+    shutil.rmtree(frames, ignore_errors=True)     # free the rectified frames (outputs are kept)
+
+shutil.make_archive("/content/outputs_radiate_all", "zip", "outputs")
+from google.colab import files; files.download("/content/outputs_radiate_all.zip")
+print("Done. outputs/trackD_<condition>/ for each; send back outputs_radiate_all.zip.")
+"""),
     MD("""## Notes for the write-up
 - Report the GPU model printed in cell 1 (e.g., Tesla T4 16 GB / A100 40 GB).
 - All latency numbers in `outputs/phase3/` and the deadline in `config.yaml`
