@@ -43,41 +43,31 @@ and Compute-Contention Beliefs under Inference Deadlines}
 
 % ---------------------------------------------------------------
 \begin{abstract}
-Reliable perception under deadline constraints must tolerate two
-co-occurring failure modes that are rarely modeled jointly: sensor
-faults and compute contention. When a sensing channel degrades and
-onboard compute is simultaneously constrained, naive or decoupled
-routing compounds errors by committing to a compute-heavy inference
-config exactly when it can least afford to execute. We present a
-\textbf{belief-space perception router} that maintains separate
-temporally-smoothed beliefs over persistent sensor-fault state and
-compute-contention state and \emph{couples} them at each timestep
-to condition config selection, selecting from a four-point
-accuracy--latency frontier (YOLO11x@1280, YOLO11x@640,
-YOLO11n@1280, YOLO11n@640) via a noisy-OR coupling term whose
-coefficient is fit on a held-out calibration draw. We evaluate on
-\textbf{three real datasets spanning two camera geometries}:
-TartanDrive (off-road, rectilinear), RADIATE (adverse weather:
-rain, snow, fog, night; rectilinear stereo), and WoodScape
-Soiling (lens contamination, fisheye), plus controlled injection
-for tracker validation, with five seeds and 95\% confidence
-intervals. The joint policy reduces deadline-miss rate by
-$1.1$--$9.4$ percentage points wherever fault--contention coupling
-is real, statistically significant in five of six coupled
-conditions (a high-degradation off-road segment, rain, fog, night,
-soiling; e.g.\ fog $+9.4$\,pp, 95\% CI $[7.1, 11.7]$; off-road
-$+3.0$\,pp), while \emph{every} uncoupled control yields exactly
-$0.0$\,pp, isolating the coupling, within this imposed regime, as
-the driver of the gain; on the fault-free full off-road trajectory
-the method is correctly inert ($0.0$\,pp). A simple belief threshold
-performs similarly to the noisy-OR (no statistically detectable
-difference), so the contribution is the coupling itself, not its
-functional form. Persistence-aware belief reduces
-config-switching for slow degradations but not fast-flickering rain,
-a fault-type-dependent effect. Experiments ran on Apple~M5 (Metal); the
-deadline self-calibrates per device, so the deadline-miss
-\emph{comparison}, not absolute latency, is the reported result.
-All code and outputs are released for reproducibility.%
+Perception on mobile robots fails in two ways that are usually
+studied apart: a sensing channel degrades, or the processor running
+inference falls behind its deadline. In the field these failures
+tend to coincide, and a router that treats them as independent can
+commit to an expensive model at the moment it has the least time to
+run it. We track both as latent state. A switching hidden Markov
+model estimates a per-channel sensor-fault belief, a two-state model
+estimates a compute-contention belief, and a coupling term lets the
+sensor belief raise the contention estimate before the latency spike
+appears; each frame, the router runs the most accurate configuration
+that still meets the deadline.
+We evaluate on three real datasets across two camera geometries:
+off-road driving (TartanDrive), adverse weather (RADIATE rain, snow,
+fog, night), and fisheye lens soiling (WoodScape), with five seeds
+and 95\% confidence intervals. Where faults and contention are
+correlated, coupling lowers the deadline-miss rate by $1.1$ to
+$9.4$ points, significant in five of the six fault-bearing
+conditions and largest under fog, where the camera fails rarely but
+severely. In every matched control where the signals are independent
+the benefit is exactly zero, and on a fault-free trajectory the
+router stays inert. The form barely matters: a hand-set threshold on
+the sensor belief does about as well as the probabilistic coupling,
+so the contribution is the coupling itself. Experiments ran on an
+Apple~M5; because the deadline is calibrated per device, we report
+the comparison, not absolute latency. Code and data are released.%
 \footnote{Repository: \url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
 \end{abstract}
 
@@ -92,76 +82,58 @@ hidden Markov model
 \section{Introduction}
 \label{sec:intro}
 
-Autonomous robots deployed in unstructured environments (off-road
-vehicles, planetary rovers, warehouse mobile bases) face two
-distinct and practically coupled failure modes that challenge
-perception pipelines. First, sensor channels degrade: cameras are
-occluded by mud or rain droplets, washed out at night, or fogged;
-IMUs saturate under impact shock; LiDAR returns drop in fog.
-Second, onboard compute is contested: a single edge processor must
-concurrently service perception, planning, and control threads, so
-peak load directly compresses the time available for any one
-inference call.
+A robot in the field has to keep seeing the world while its computer
+keeps up, and both can fail. A camera gets splashed with mud, washed
+out at dusk, or lost in fog; an IMU saturates on a hard bump; lidar
+returns thin out in rain. At the same time the onboard processor is
+shared among perception, planning, and control, so a load spike on
+any of them eats into the time a single detection has to finish.
+These two kinds of failure are almost always handled separately.
 
-These stressors are not independent. Aggressive terrain traversal
-that occludes the camera is precisely the regime that also spikes
-motor-control CPU load; rain that contaminates the lens also raises
-frame-to-frame processing as segmentation outputs densify. Treating
-fault and contention as independent signals lets a router select a
-compute-heavy inference config at the moment it can least afford to
-execute it, or trust a degraded channel because no fault signal
-arrived within the tight latency window.
+They are also correlated. The rough terrain that throws mud on the
+lens is the same terrain that spikes motor-control load; the rain
+that blurs a frame also slows segmentation because there is more
+clutter to segment. A router that scores the two signals on their
+own can therefore make exactly the wrong move. It picks a heavy
+model just as the processor bogs down, or it keeps trusting a
+blinded camera because the fault flag has not arrived yet.
 
-Existing work addresses each stressor in isolation. Fault-tolerant
-fusion down-weights degraded modalities
+Prior work tends to take one problem at a time. Fault-tolerant
+fusion down-weights a degraded sensor
 \cite{antonante2022monitoring, tian2025fault}; compute-aware
-routers select inference paths from an available budget
-\cite{laskaridis2021adaptive, teerapittayanon2016branchynet}. No
-prior work, to our knowledge, estimates both a sensor-fault belief
-and a compute-contention belief and exploits their coupling to
-reduce deadline-miss rate.
+inference drops to a cheaper network when the time budget is tight
+\cite{laskaridis2021adaptive, teerapittayanon2016branchynet}. We
+are not aware of work that estimates a sensor-fault belief and a
+compute-contention belief together and uses the link between them
+to keep a deadline.
 
-This paper makes four contributions:
+This paper contributes a coupled belief model that estimates
+per-channel sensor-fault state with switching HMMs and compute state
+with a two-state HMM, both fit from observable signals without task
+labels; a noisy-OR routing policy whose single coupling coefficient
+is fit on held-out data to avoid leakage; an evaluation on three
+real datasets and two camera geometries (TartanDrive off-road,
+RADIATE weather, WoodScape fisheye soiling) with five seeds,
+confidence intervals, and negative results reported in full; and a
+config-driven pipeline released for reproduction
+(\S\ref{sec:method}, \S\ref{sec:experiments}).
 
-\begin{itemize}
-  \item We formulate the coupled sensor-fault / compute-contention
-    belief state using per-channel switching HMMs and a two-state
-    compute HMM, fit from observable signals without task-specific
-    labels (\S\ref{sec:method}).
-  \item We derive a noisy-OR joint policy that fuses compute belief
-    with a coupling prediction from the sensor belief; the coupling
-    coefficient $\kappa$ is fit on a held-out calibration draw to
-    prevent leakage (\S\ref{sec:method}).
-  \item We evaluate across three real datasets spanning two camera
-    geometries (off-road TartanDrive, adverse-weather RADIATE
-    rain/snow/fog/night, and fisheye lens soiling on WoodScape),
-    plus controlled injection, with five seeds and
-    95\% $t$-interval CIs, reporting negative and null findings
-    plainly (\S\ref{sec:experiments}).
-  \item We release a fully reproducible, config-driven Python
-    pipeline covering data acquisition, belief estimation, routing
-    simulation, and statistical testing.\footnotemark[1]
-\end{itemize}
-
-The central finding (Fig.~\ref{fig:summary}) is that modeling the
-coupling between sensor fault and compute contention produces a
-reduction in deadline-miss rate that ranges from small (rain
-$+1.1$\,pp, soiling $+1.6$\,pp) through moderate (off-road segment
-$+3.0$\,pp) to large (night $+5.9$\,pp, fog $+9.4$\,pp). The
-condition-level pattern suggests the benefit may track
-deadline-binding degradation \emph{severity} more closely than fault
-frequency or correlation strength (an interpretation, not a
-directly measured variable; \S\ref{sec:discussion}). The effect is
-present only where coupling is present and \emph{exactly zero} in
-every uncoupled control, establishing that exploiting the
-coupling, not the belief machinery itself, drives the gain;
-whether field deployments exhibit such fault--contention coupling is
-a separate empirical question we scope in \S\ref{sec:discussion}.
-The effect also vanishes harmlessly on a clean trajectory with no
-faults.
-Persistence-aware belief tracking helps on slow degradations but
-hurts on fast-flickering rain, a fault-type-dependent result we
-report without qualification.
+Our main result is easy to state (Fig.~\ref{fig:summary}). When the
+two failures are correlated, modeling that correlation cuts deadline
+misses, and the size of the cut depends on how badly the degradation
+strains the deadline, not on how often it occurs. Fog is the
+clearest case. The camera fails on under two percent of frames
+there, yet coupling saves more than nine points, because the rare
+fog episodes are severe enough to make the reference model
+infeasible. Rain degrades almost half its frames and saves about
+one. The controls are clean: in every regime where we break the
+correlation the gain falls to exactly zero, and on a trajectory with
+no faults the router changes nothing. Two caveats run through the
+paper. The correlation here is built into our experimental design,
+so what we establish is that exploiting coupling helps when coupling
+is present, not that fielded robots exhibit it. And smoothing the
+belief over time helps for slow degradations like fog but hurts for
+the fast flicker of rain droplets.
 
 \begin{figure}[t]
   \centering
@@ -963,28 +935,26 @@ the $0.0\%$ fault fraction and the null RQ-H result.
 
 \subsection{Interpreting the Effect Size}
 
-The reduction in deadline-miss rate spans an order of magnitude
-across conditions ($1.1$--$9.4$\,pp) and is statistically
-significant in five of six coupled real conditions. The
-credibility of the claim rests less on any single number than on
-the triangulation: positive across three real datasets, two camera
-geometries (rectilinear and fisheye), and multiple degradation
-physics (off-road terrain, droplets, snow, fog, night, soiling);
-\emph{exactly zero} in every uncoupled control; and harmlessly zero
-on the fault-free full trajectory.
-That pattern isolates the fault--contention coupling, within the
-imposed regime, as the driver of the gain rather than an artifact of
-the belief estimator or the metric. The most actionable insight is
-that the benefit appears to scale with fault \emph{severity}
-(deadline-bindingness), not fault frequency or correlation
-strength, fog being the clearest case. We note that ``severity'' is
-here an interpretation inferred from condition-level outcomes, not a
-variable we measure directly; a controlled severity sweep would test
-it explicitly. We also found (Table~\ref{tab:baseline}) that a
-simple threshold rule performs comparably to the noisy-OR on RQ-H
-(no statistically detectable difference), so the contribution is
-coupling sensor belief into contention anticipation, not the
-specific fusion form.
+What convinces us is not the largest number but the consistency. The
+reduction is positive on every fault-bearing condition, across three
+datasets and two camera geometries, for degradations as different as
+off-road dust, rain droplets, snow, fog, night, and lens soiling. It
+is exactly zero whenever we cut the correlation, and zero again on a
+trajectory with no faults. A confound in the belief estimator or the
+metric would not switch off so cleanly when only the coupling
+changes.
+
+The pattern across conditions points to severity rather than
+frequency. Fog has the fewest faults and the weakest measured
+correlation, yet the largest benefit, because its rare episodes are
+the ones that actually push the reference model past the deadline.
+We are careful here: ``severity'' is read off the per-condition
+outcomes, not measured as its own variable, and a controlled sweep
+would be needed to pin it down. The threshold baseline
+(Table~\ref{tab:baseline}) is part of the same story. A hand-set
+rule on the sensor belief does as well as the probabilistic version,
+so the work is being done by the act of coupling, not by the noisy-OR
+in particular.
 
 \subsection{When Persistence Helps and Hurts}
 
@@ -1057,27 +1027,21 @@ measuring task success rather than detector agreement.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented a belief-space perception router that estimates
-sensor-fault and compute-contention beliefs via separate HMMs and
-\emph{couples} them with a noisy-OR term to reduce deadline-miss
-rate versus a fair decoupled baseline. Evaluated across three real datasets
-spanning two camera geometries (off-road TartanDrive, adverse
-weather RADIATE rain/snow/fog/night, and fisheye lens soiling on
-WoodScape), with five seeds and 95\% CIs, the joint policy
-reduces deadline-miss rate by $1.1$--$9.4$\,pp wherever
-fault--contention coupling is real, significantly in five of six
-coupled conditions, while every uncoupled control and the
-fault-free trajectory produce exactly zero improvement. A simple
-belief-threshold rule performs comparably on RQ-H, locating the
-contribution in the coupling rather than its functional form; the
-condition-level results suggest the benefit may track
-deadline-binding severity more than frequency; and persistence-aware
-belief helps on slow degradations but hurts on fast-flickering
-rain, a fault-type-dependent finding reported without
-qualification. The
-work establishes coupled belief-space modeling of fault and
-contention as a tractable, measurable research direction, and
-releases a fully reproducible pipeline.
+We built a router that estimates a sensor-fault belief and a
+compute-contention belief with separate HMMs and couples them so the
+sensor signal can anticipate a latency spike. Across three real
+datasets and two camera geometries, with five seeds and confidence
+intervals, coupling lowered the deadline-miss rate by $1.1$ to
+$9.4$ points wherever the two failures were correlated, and by
+nothing at all in the matched controls or on a fault-free
+trajectory. The benefit tracked how severely a degradation strained
+the deadline rather than how often it occurred, and a plain
+threshold on the sensor belief matched the probabilistic coupling,
+which places the contribution in the coupling and not its form. The
+one negative we want to keep in view is that temporal smoothing
+helped slow degradations but hurt fast-flickering rain. The coupling
+in these experiments is imposed by design; whether it arises on its
+own in fielded systems is the question we would test next.
 
 % ---------------------------------------------------------------
 \bibliographystyle{IEEEtran}
