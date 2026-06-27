@@ -46,11 +46,14 @@ def main() -> int:
     import ci as cistats
 
     cfg = load_config()
-    if cfg["deadline"]["value_ms"] is None:
-        print("ERROR: track has no profiled frontier."); return 2
     keys = list(cfg["configs"].keys())
     pol.CONFIG_KEYS = keys
     out_dir = abspath(args.track)
+    p3sum = out_dir / "phase3" / "phase3_summary.json"
+    if not p3sum.exists():
+        print(f"ERROR: {args.track} has no profiled frontier (phase3)."); return 2
+    import json as _json
+    deadline_s = float(_json.load(open(p3sum))["deadline_ms"]) / 1e3  # THIS track's deadline
     latnpz = np.load(out_dir / "phase3" / "latency_distributions.npz")
     accdf = pd.read_csv(out_dir / "phase3" / "per_frame_accuracy.csv")
     lab = pd.read_csv(out_dir / "phase1" / "trackA_observations.csv")
@@ -63,7 +66,6 @@ def main() -> int:
         acc_nom[c] = float(np.nanmean(a[~fa_real])) if (~fa_real).any() else float(np.nanmean(a))
         acc_flt[c] = float(np.nanmean(a[fa_real])) if fa_real.any() else float(np.nanmean(a))
     lat_dists = {c: {"nominal": latnpz[f"{c}_nominal"], "contended": latnpz[f"{c}_contended"]} for c in keys}
-    deadline_s = float(cfg["deadline"]["value_ms"]) / 1e3
     fm = pol.build_frontier_model(deadline_s, lat_dists, acc_nom, acc_flt)
     rt = cfg["routing"]["reliability_target"]
     dwell = cfg["routing"]["hysteresis"]["fixed"]["dwell_frames"]
