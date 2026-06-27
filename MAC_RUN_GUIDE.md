@@ -221,5 +221,11 @@ reusing the track's labels, and re-runs routing, into `outputs/<track>_extended/
 original 4-config results are untouched. This is the only add-on that needs the GPU and
 the frames. (On a Mac, profiling 9 configs is heavier; `--profile-n 1500` bounds it.)
 
+Shortcut: run 7a + 7b on several tracks at once (defaults to the strong tracks fog+night):
+```bash
+python src/run_addons.py                                  # fog + night
+python src/run_addons.py --tracks outputs/trackD_rain_4_0 outputs/trackC
+```
+
 Return results: `git add outputs/<track>/extras outputs/<track>_extended` and push, or zip
 and send.
