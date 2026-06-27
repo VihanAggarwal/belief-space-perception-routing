@@ -9,6 +9,7 @@ gives the confidence intervals required for every comparison.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
@@ -147,7 +148,14 @@ def build_substrate(cfg: dict, regime: str, seed: int) -> Substrate:
     c_instant = _sigmoid((p95 - np.median(p95)) / (np.std(p95) + 1e-9))
 
     # --- frontier model + coupling ---
-    deadline_s = float(cfg["deadline"]["value_ms"]) / 1e3
+    # Prefer THIS track's own profiled deadline (outputs/<track>/phase3), not config.yaml's
+    # value_ms (which holds whichever track was profiled last). Critical when analyzing a
+    # track other than the one config.yaml currently points at (e.g. the add-on sections).
+    p3sum = abspath(cfg["paths"]["outputs_dir"]) / "phase3" / "phase3_summary.json"
+    if p3sum.exists():
+        deadline_s = float(json.load(open(p3sum))["deadline_ms"]) / 1e3
+    else:
+        deadline_s = float(cfg["deadline"]["value_ms"]) / 1e3
     lat_dists = {c: {"nominal": latnpz[f"{c}_nominal"], "contended": latnpz[f"{c}_contended"]}
                  for c in keys}
     fm = pol.build_frontier_model(deadline_s, lat_dists, acc_nominal, acc_faulted)
