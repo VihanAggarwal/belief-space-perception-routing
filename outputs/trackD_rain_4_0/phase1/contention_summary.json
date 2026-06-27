@@ -1,10 +1,10 @@
 {
-  "device": "cuda",
-  "p95_nominal_ms": 20.299134999822854,
-  "p95_contended_ms": 75.68891000037183,
-  "p99_nominal_ms": 20.896975000268863,
-  "p99_contended_ms": 75.81721199961976,
-  "median_nominal_ms": 19.679349999023543,
-  "median_contended_ms": 74.7528499996406,
-  "p95_shift_ratio": 3.7286766160741505
+  "device": "mps",
+  "p95_nominal_ms": 17.501816782169044,
+  "p95_contended_ms": 45.40198921458796,
+  "p99_nominal_ms": 17.83236104529351,
+  "p99_contended_ms": 47.42708660895005,
+  "median_nominal_ms": 16.840812051668763,
+  "median_contended_ms": 39.59964611567557,
+  "p95_shift_ratio": 2.594130071161742
 }
