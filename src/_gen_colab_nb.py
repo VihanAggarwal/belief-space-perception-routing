@@ -210,12 +210,13 @@ for z in zips:
         with zipfile.ZipFile(z) as zf:   # camera only, to save Colab disk
             members = [m for m in zf.namelist() if m.startswith("zed_left/") or m == "zed_left.txt"]
             zf.extractall(dst, members or None)
-    subprocess.run(["python", "src/extract_radiate.py", "--seq-dir", dst,
-                    "--max-frames", str(MAX_FRAMES_PER_SEQ)], check=False)
+    live = dict(os.environ, PYTHONUNBUFFERED="1")   # stream child output live (no silent gaps)
+    subprocess.run(["python", "-u", "src/extract_radiate.py", "--seq-dir", dst,
+                    "--max-frames", str(MAX_FRAMES_PER_SEQ)], check=False, env=live)
     frames = f"data/frames/radiate_{name}"
-    env = dict(os.environ, FRAMES_DIR=frames, OUTPUTS_DIR=f"outputs/trackD_{name}", PROFILE_N="0")
-    print(f"=== running pipeline: {name} ===")
-    subprocess.run(["python", "src/run_pipeline.py", "--skip-extract"], env=env, check=False)
+    env = dict(live, FRAMES_DIR=frames, OUTPUTS_DIR=f"outputs/trackD_{name}", PROFILE_N="0")
+    print(f"=== running pipeline: {name} ===", flush=True)
+    subprocess.run(["python", "-u", "src/run_pipeline.py", "--skip-extract"], env=env, check=False)
     shutil.rmtree(dst, ignore_errors=True)        # free the extracted camera
     shutil.rmtree(frames, ignore_errors=True)     # free the rectified frames (outputs are kept)
 
