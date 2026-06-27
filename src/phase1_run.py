@@ -8,6 +8,7 @@ Run after frames are extracted:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -186,7 +187,14 @@ def main() -> int:
     print(f"Loaded {len(src)} frames")
 
     labeled = track_a(src, cfg)
-    b = track_b(src, cfg)
+    # Track B is the controlled-injection validation aid (a second optical-flow pass over
+    # all frames). It is not part of the real-data headline, so it can be skipped to halve
+    # Phase 1 cost on CPU-bound environments (e.g. Colab). SKIP_TRACK_B=1 to skip.
+    if os.getenv("SKIP_TRACK_B") == "1":
+        print("[Track B] SKIPPED (SKIP_TRACK_B=1)")
+        b = {"skipped": True}
+    else:
+        b = track_b(src, cfg)
     c = contention_demo(cfg)
     r = regimes_demo(labeled, cfg)
 

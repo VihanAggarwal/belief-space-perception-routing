@@ -190,7 +190,7 @@ True to run every sequence (many hours). `MAX_FRAMES_PER_SEQ` bounds each run.""
 from google.colab import drive; drive.mount('/content/drive')
 RADIATE_ZIP_DIR = "/content/drive/MyDrive/Data UTRC"   # folder with rain_4_0.zip, snow_1_0.zip, ...
 RUN_ALL_ZIPS = False            # False = one representative sequence per weather condition
-MAX_FRAMES_PER_SEQ = 5000       # bound per sequence (Colab Pro handles it); 0 = all frames
+MAX_FRAMES_PER_SEQ = 1500       # Phase 1 is CPU-bound on Colab; 1500 is plenty (the sig. rain result used 1500)
 DEFAULT_ONE_PER_CONDITION = ["rain_4_0", "snow_1_0", "fog_6_0", "night_1_0"]
 
 import os, glob, zipfile, shutil, subprocess
@@ -210,7 +210,9 @@ for z in zips:
         with zipfile.ZipFile(z) as zf:   # camera only, to save Colab disk
             members = [m for m in zf.namelist() if m.startswith("zed_left/") or m == "zed_left.txt"]
             zf.extractall(dst, members or None)
-    live = dict(os.environ, PYTHONUNBUFFERED="1")   # stream child output live (no silent gaps)
+    # stream child output live (no silent gaps); skip the Track B injection pass
+    # (validation-only, a 2nd CPU optical-flow pass) to roughly halve Phase 1 on Colab CPUs
+    live = dict(os.environ, PYTHONUNBUFFERED="1", SKIP_TRACK_B="1")
     subprocess.run(["python", "-u", "src/extract_radiate.py", "--seq-dir", dst,
                     "--max-frames", str(MAX_FRAMES_PER_SEQ)], check=False, env=live)
     frames = f"data/frames/radiate_{name}"
