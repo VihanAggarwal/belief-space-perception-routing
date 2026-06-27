@@ -159,6 +159,32 @@ deadline is the median nominal latency of the strongest
 configuration. Under contention, that reference configuration becomes
 infeasible while cheaper configurations remain feasible.
 
+The frontier is deliberately small. It keeps the routing action space
+interpretable and makes the ablation sharp: if the coupled policy
+improves deadline behavior, the improvement comes from how the
+contention probability is formed, not from a large learned action set.
+We still profiled a denser nine-configuration Pareto frontier on fog
+as a robustness check. The coupled benefit remains significant there,
+although it shrinks because the decoupled policy has better fallback
+configurations.
+
+This choice also avoids a common ambiguity in adaptive-inference
+papers: whether a policy wins because it estimates system state
+better or because its action space contains a lucky operating point.
+Here every policy shares the same frontier, deadline, hysteresis
+dwell, and per-frame latency table. The only experimental degree of
+freedom in RQ-H is the belief transformation used to predict
+contention before selecting a configuration.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_frontier.png}
+  \caption{Measured accuracy-latency frontier on RADIATE rain. Under
+  contention, the reference configuration crosses the self-calibrated
+  deadline while cheaper configurations remain feasible.}
+  \label{fig:frontier}
+\end{figure}
+
 For each sensor channel $k$, a four-state switching HMM tracks
 $z_k \in \{\text{nominal},\text{degrading},\text{faulted},
 \text{recovering}\}$. Emissions are computed from blur, illumination,
@@ -172,6 +198,32 @@ Compute contention is a two-state HMM over recent latency features
 (p95, p99, and queue depth), producing
 $b_c^t=P(z_c^t=\text{contended}\mid \ell_{1:t})$.
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_belief_occlusion.png}
+  \caption{Occlusion fault belief on RADIATE rain. The raw
+  track-survival signal is noisy; the switching-HMM posterior
+  recovers sustained degradation episodes.}
+  \label{fig:belief}
+\end{figure}
+
+Contention is observed through latency, not through the injected
+schedule itself. The compute HMM therefore has access only to recent
+latency statistics, while the coupled router can raise the predicted
+contention probability through Eq.~\eqref{eq:noisyor}. This
+separation is what makes the decoupled baseline meaningful: it sees
+the same beliefs and the same frontier, but it does not use sensor
+fault as a predictor of contention.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_contention.png}
+  \caption{Nominal vs.\ contended per-frame latency on RADIATE rain.
+  The induced load shifts p95 latency by about $2.5\times$, pushing
+  the reference configuration past the self-calibrated deadline.}
+  \label{fig:contention}
+\end{figure}
+
 The decoupled policy uses $p_{\mathrm{cont}}^t=b_c^t$. The coupled
 policy uses
 \begin{equation}
@@ -184,6 +236,38 @@ the same trace, never on the test window. Both policies choose the
 highest expected-accuracy configuration whose median latency is
 feasible under the predicted compute state. They differ only in the
 cross-prediction from sensor fault to contention.
+
+The median-latency feasibility rule is intentionally conservative.
+It does not assume that the router can predict each frame's realized
+latency; it only asks whether the profiled distribution for a
+configuration is appropriate for the current belief state. This
+keeps the method implementable on embedded systems where only recent
+latency summaries are available online.
+
+\begin{algorithm}[t]
+\caption{Coupled belief-space routing at frame $t$}
+\label{alg:router}
+\begin{algorithmic}[1]
+\REQUIRE sensor observations $o_t$, latency features $\ell_t$,
+frontier $\mathcal{C}$, deadline $D$, coupling $\kappa$
+\STATE Update sensor HMMs with $o_t$ and set
+$b_f^t \leftarrow \max_k P(z_k^t=\mathrm{faulted})$
+\STATE Update compute HMM with $\ell_t$ and set
+$b_c^t \leftarrow P(z_c^t=\mathrm{contended})$
+\STATE Set $p_{\mathrm{cont}}^t \leftarrow
+1-(1-b_c^t)(1-\kappa b_f^t)$
+\FORALL{configuration $c \in \mathcal{C}$}
+  \STATE Estimate feasible probability
+  $q_c^t \leftarrow
+  P(\ell_c \le D\mid p_{\mathrm{cont}}^t)$
+  \STATE Score $s_c^t \leftarrow
+  E[\mathrm{acc}_c\mid b_f^t]\,q_c^t$
+\ENDFOR
+\STATE Choose the highest-accuracy $c$ whose median predicted
+latency is deadline-feasible; fall back to $\arg\max_c s_c^t$ if no
+configuration is feasible.
+\end{algorithmic}
+\end{algorithm}
 
 \section{Experimental Setup}
 \label{sec:experiments}
@@ -209,11 +293,68 @@ independent of faults. Thus the causal claim is limited to the
 imposed regimes: when contention is made to depend on fault onset,
 using fault belief helps anticipate contention.
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_regimes.png}
+  \caption{Coupled and uncoupled schedules on RADIATE rain. In the
+  coupled regime, contention follows detected fault onset; in the
+  uncoupled control it follows a fixed schedule independent of
+  faults.}
+  \label{fig:regimes}
+\end{figure}
+
 All experiments run on an Apple~M5 with the Metal backend in fp32.
 Absolute latencies are development-environment measurements and are
 not the headline result. Each comparison uses five seeds, paired
 95\% confidence intervals, and identical frames across seeds; seed
 variance comes from injected sensor-measurement noise.
+
+The deadline is calibrated separately for each track from the
+profiled reference configuration, so the reported quantity is a
+within-device policy comparison. This matters for HPEC-style
+reproducibility: another accelerator will have different absolute
+latencies, but the same scripts rebuild the local frontier, set the
+deadline, rerun the policies, and regenerate the tables. The
+repository includes the configuration files, processed outputs, and
+scripts used to produce the reported statistics.
+
+The artifact is organized so that reviewers can rerun the paper
+without redistributing restricted third-party data. Dataset-specific
+scripts construct local manifests from registered copies of
+TartanDrive, RADIATE, and WoodScape; subsequent phases cache the
+health observations, profile the frontier, generate contention
+traces, run the policies, and emit the figures and JSON summaries
+used here. The released processed outputs are enough to check the
+reported arithmetic, while the acquisition instructions preserve
+the original dataset licenses.
+
+\begin{table*}[t]
+\caption{Run profile used for the HPEC submission. Deadlines and
+latencies are local Apple~M5/MPS measurements; they define
+within-track comparisons rather than portable hardware claims.
+$P_c(F)$ and $P_c(N)$ are imposed coupled-regime probabilities of
+contention given faulted and nominal frames.}
+\label{tab:profile}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Condition} & \textbf{Deadline} &
+\textbf{C1 p95 nom.} & \textbf{C1 p95 cont.} &
+\textbf{Load shift} & \textbf{$P_c(F)$} & \textbf{$P_c(N)$} \\
+ & \textbf{(ms)} & \textbf{(ms)} & \textbf{(ms)} &
+\textbf{(p95)} & & \\
+\midrule
+TartanDrive seg. & 237.7 & 244.9 & 525.8 & $1.71\times$ & 0.809 & 0.074 \\
+RADIATE rain     & 229.0 & 235.8 & 483.9 & $2.59\times$ & 0.835 & 0.084 \\
+RADIATE snow     & 218.5 & 222.6 & 469.1 & $2.57\times$ & 0.775 & 0.067 \\
+RADIATE fog      & 217.5 & 219.7 & 461.5 & $2.56\times$ & 0.620 & 0.054 \\
+RADIATE night    & 217.2 & 220.6 & 458.6 & $2.54\times$ & 0.794 & 0.058 \\
+WoodScape soil   & 341.1 & 353.9 & 718.4 & $2.50\times$ & 0.723 & 0.065 \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \section{Results}
 \label{sec:results}
@@ -227,6 +368,16 @@ fault fraction and weakest measured coupling, but the largest
 benefit, because its rare episodes are severe enough to make the
 reference configuration miss the deadline. Rain faults almost half
 the frames but yields only a $+1.13$\,pp reduction.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_rqh_fog.png}
+  \caption{RADIATE fog, the strongest RQ-H condition. The coupled
+  policy downshifts before rare but severe fog episodes make the
+  reference configuration infeasible; the matched uncoupled control
+  removes the gain.}
+  \label{fig:fog}
+\end{figure}
 
 \begin{table*}[t]
 \caption{RQ-H. Deadline-miss rate, coupled vs.\ decoupled. $\Delta$
@@ -275,6 +426,35 @@ conditions, including snow, but this checks temporal resampling
 within a sequence rather than generalization across independent
 drives.
 
+The negative controls are equally important. In the fault-free
+TartanDrive full sequence, there is no sensor event from which the
+coupled router can anticipate contention, so the coupled and
+decoupled decisions coincide. In the matched uncoupled schedules,
+faults remain present but the contention process no longer depends
+on their onset; the measured RQ-H gain again collapses to zero.
+Those two controls separate the coupling effect from a generic
+preference for cheaper models.
+
+Deadline strictness and coupling strength behave as expected on fog.
+At $0.8$--$0.9\times$ the calibrated deadline, every policy must
+downshift and the coupled advantage is zero. At $1.0\times$, where
+the reference configuration is borderline feasible, the reduction is
+$+9.40$\,pp. At $1.1$--$1.2\times$, late frames are rare and the gap
+shrinks to $+0.67$\,pp with a CI that includes zero. Sweeping
+$\kappa$ gives a graded response: $0.0$\,pp at $\kappa=0$,
+$+3.0$\,pp at $\kappa=0.5$, $+9.27$\,pp at $\kappa=0.75$, and
+$+10.93$\,pp at $\kappa=1.0$.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_phase_diagram.png}
+  \caption{Controlled coupling-strength $\times$ fault-onset-rate
+  sweep on RADIATE fog. The no-coupling row is zero; under positive
+  coupling, the benefit varies nonlinearly with onset rate and
+  coupling strength.}
+  \label{fig:phase}
+\end{figure}
+
 \begin{table}[t]
 \caption{Learned-router audit. The MLP uses the same belief features
 as the coupled policy and is trained on temporally split oracle
@@ -312,6 +492,37 @@ slow-onset assumption. Model-derived hysteresis responds faster than
 fixed hysteresis under non-stationary arrivals (1.6 vs.\ 6.6 frames
 of onset-to-reconfiguration lag), but switches about 30\% more often.
 
+\begin{table}[t]
+\caption{Persistence-aware belief vs.\ memoryless threshold. Positive
+$\Delta$ means the belief policy switches less.}
+\label{tab:persistence}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Cond.} & \textbf{Bel.} & \textbf{Mem.} & \textbf{$\Delta$} &
+\textbf{bAcc$_b$} & \textbf{bAcc$_m$} \\
+\midrule
+Rain   & 0.020 & 0.010 & $-0.010^\ast$ & 0.884 & 0.854 \\
+Snow   & 0.043 & 0.031 & $-0.012$      & 0.859 & 0.821 \\
+Fog    & 0.037 & 0.047 & $+0.011^\ast$ & 0.752 & 0.668 \\
+Night  & 0.050 & 0.074 & $+0.024^\ast$ & 0.825 & 0.794 \\
+Soil   & 0.020 & 0.052 & $+0.031^\ast$ & 0.862 & 0.808 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_rqa1_night.png}
+  \caption{RQ-A1 example on RADIATE night. At matched fault-detection
+  accuracy, the persistent belief policy switches less often than a
+  memoryless threshold, reducing route churn during slow illumination
+  degradation.}
+  \label{fig:rqa1}
+\end{figure}
+
 \section{Discussion}
 \label{sec:discussion}
 
@@ -335,6 +546,36 @@ are not used. WoodScape's temporal order is burst order, not
 continuous video. Finally, the five seeds reuse the same frames, so
 the CIs measure sensitivity to sensor-measurement noise rather than
 generalization across vehicles or routes.
+
+The next step is to replace the imposed schedule with measured
+co-occurrence on an embedded platform, for example a Jetson-class
+system where perception, planning, and control run together. A full
+factorial or cross-coupled HMM could also maintain
+$P(z_f^t,z_c^t\mid o_{1:t})$ directly instead of coupling marginal
+beliefs only at decision time. Finally, downstream closed-loop tests
+should measure task success, not only detector agreement and
+deadline misses.
+
+For HPEC readers, the hardware lesson is not that the Apple~M5
+latency numbers will transfer to another accelerator. They will not.
+The portable claim is procedural: profile the local perception
+frontier, estimate whether contention is likely before the latency
+tail fully appears, and route to the strongest configuration whose
+local distribution satisfies the deadline. The same structure can
+also express weaker operational assumptions by lowering $\kappa$ or
+by disabling the coupling term when field logs do not show
+fault-conditioned load.
+
+The results should also be read as an argument against using fault
+frequency alone to prioritize robustness work. Rain faults are common
+but often leave a feasible low-cost route, while fog faults are rare
+yet deadline-binding in this setup. We do not directly measure
+physical degradation severity; we infer its effect from the profiled
+frontier and observed deadline misses. A deployment should therefore
+log both the health signal and the latency response, then estimate
+whether $P(\mathrm{contention}\mid\mathrm{fault})$ is materially
+larger than $P(\mathrm{contention}\mid\mathrm{nominal})$ before
+enabling the coupling term.
 
 \section{Conclusion}
 \label{sec:conclusion}
