@@ -118,6 +118,13 @@ pooled across seeds, of the per-frame miss reduction.
 | 0.75 | +9.27pp [7.13,11.41]* |
 | 1.0 | +10.93pp [6.59,15.28]* |
 
+**Observation-noise sweep** (joint-vs-threshold deadline-miss gap; tests whether soft fusion gains an edge under heavier sensor noise):
+
+| track | sigma=0.15 | 0.30 | 0.50 | 0.75 |
+|---|---|---|---|---|
+| Track D - RADIATE fog | -0.47pp | -1.20pp | -1.20pp | -0.53pp |
+| Track D - RADIATE rain (real adverse weather) | -0.07pp | -0.07pp | -0.07pp | +0.13pp |
+
 ## Figures (committed under each track's outputs)
 - RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`
 - RQ-A1 / RQ-A2: `outputs/<track>/phase6/`

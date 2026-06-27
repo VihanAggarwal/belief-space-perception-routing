@@ -165,6 +165,16 @@ def main():
             for s in fog["kappa_sweep"]:
                 L.append(f"| {s['kappa']} | {s['reduction_pp']:+.2f}pp [{s['lo_pp']:.2f},{s['hi_pp']:.2f}]"
                          f"{'*' if s['significant'] else ''} |")
+        ns_tracks = [t for t in tracks if rob.get(t) and "noise_sweep_joint_minus_threshold" in rob[t]]
+        if ns_tracks:
+            L += ["", "**Observation-noise sweep** (joint-vs-threshold deadline-miss gap; tests whether "
+                  "soft fusion gains an edge under heavier sensor noise):", "",
+                  "| track | sigma=0.15 | 0.30 | 0.50 | 0.75 |", "|---|---|---|---|---|"]
+            for t in ns_tracks:
+                cells = {s["sigma"]: s for s in rob[t]["noise_sweep_joint_minus_threshold"]}
+                row = " | ".join(f"{cells[sg]['joint_minus_threshold_pp']:+.2f}pp"
+                                 f"{'*' if cells[sg]['significant'] else ''}" for sg in (0.15, 0.30, 0.50, 0.75))
+                L.append(f"| {NAMES.get(t,t)} | {row} |")
 
     L += ["", "## Figures (committed under each track's outputs)",
           "- RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`",

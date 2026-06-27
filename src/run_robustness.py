@@ -71,6 +71,8 @@ def main() -> int:
     ap.add_argument("--track", default="outputs")
     ap.add_argument("--sweeps", action="store_true",
                     help="also run deadline + kappa sweeps (auto-on for fog tracks)")
+    ap.add_argument("--noise-sweep", action="store_true",
+                    help="also sweep observation noise std (auto-on for fog/rain tracks)")
     args = ap.parse_args()
     os.environ["OUTPUTS_DIR"] = args.track
 
@@ -88,6 +90,7 @@ def main() -> int:
     rt = cfg["routing"]["reliability_target"]
     dwell = cfg["routing"]["hysteresis"]["fixed"]["dwell_frames"]
     do_sweeps = args.sweeps or ("fog" in args.track)
+    do_noise = args.noise_sweep or ("fog" in args.track) or ("rain" in args.track)
 
     # calibration kappa, exactly as phase5 (fit on offset calibration draws, not the test trace)
     kappa_cal = sim.calibration_kappa(cfg, "coupled", [s + 100 for s in seeds])
@@ -177,6 +180,23 @@ def main() -> int:
                               "significant": diff["significant"]})
         summary["kappa_sweep"] = kap_sweep
 
+    # --- 4) observation-noise sweep: joint-vs-threshold gap stability (fog/rain) ---
+    if do_noise:
+        noise_sweep = []
+        for sigma in (0.15, 0.30, 0.50, 0.75):
+            cfg.setdefault("experiments", {})["observation_noise_std"] = sigma
+            gaps = []
+            for s in seeds:
+                sub = sim.build_substrate(cfg, regime="coupled", seed=s)
+                jm = run("joint", sub, sub.fm)["deadline_miss_rate"]
+                tm = run("threshold", sub, sub.fm)["deadline_miss_rate"]
+                gaps.append(jm - tm)
+            g = cistats.mean_ci(gaps)
+            noise_sweep.append({"sigma": sigma, "joint_minus_threshold_pp": g["mean"] * 100,
+                                "lo_pp": g["lo"] * 100, "hi_pp": g["hi"] * 100,
+                                "significant": bool(g["lo"] > 0 or g["hi"] < 0)})
+        summary["noise_sweep_joint_minus_threshold"] = noise_sweep
+
     extras = out_dir / "extras"; extras.mkdir(parents=True, exist_ok=True)
     json.dump(summary, open(extras / "robustness.json", "w"), indent=2, default=str)
 
@@ -196,6 +216,10 @@ def main() -> int:
     if do_sweeps:
         print("deadline sweep:  " + "  ".join(f"{r['mult']}x:{r['reduction_pp']:+.2f}" for r in summary["deadline_sweep"]))
         print("kappa sweep:     " + "  ".join(f"k={r['kappa']}:{r['reduction_pp']:+.2f}" for r in summary["kappa_sweep"]))
+    if do_noise:
+        print("noise sweep (joint-threshold pp):  " + "  ".join(
+            f"s={r['sigma']}:{r['joint_minus_threshold_pp']:+.2f}[{r['lo_pp']:.1f},{r['hi_pp']:.1f}]"
+            for r in summary["noise_sweep_joint_minus_threshold"]))
     return 0
 
 
