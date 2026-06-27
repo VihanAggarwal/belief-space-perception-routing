@@ -196,6 +196,26 @@ class DecoupledPolicy:
 
 
 @dataclass
+class ThresholdPolicy:
+    """Rule-based coupling ablation: instead of the soft noisy-OR, fuse the two beliefs
+    by a hard union p_cont = max(c_belief, 1[s_belief > 0.5]). Same feasible-set / max-
+    accuracy objective and same hysteresis as the joint policy, so the ONLY difference
+    from JointPolicy is the fusion FUNCTION (hard threshold vs soft noisy-OR). Tests
+    whether the specific noisy-OR form matters or whether any sensor-triggered
+    anticipation suffices (paper Table: 'Is the noisy-OR necessary?')."""
+    fm: FrontierModel
+    reliability_target: float
+    hysteresis: Hysteresis
+    s_threshold: float = 0.5
+    allow_abstain: bool = False
+
+    def decide(self, s_belief: float, c_belief: float) -> str:
+        p_cont = max(c_belief, 1.0 if s_belief > self.s_threshold else 0.0)
+        return _choose(self.fm, s_belief, p_cont, self.reliability_target,
+                       self.hysteresis, self.allow_abstain)
+
+
+@dataclass
 class MemorylessPolicy:
     """RQ-A1 comparison: same features and same objective, belief update bypassed. It
     consumes the instantaneous (unfiltered) sensor and compute signals with no

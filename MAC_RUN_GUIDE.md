@@ -227,5 +227,19 @@ python src/run_addons.py                                  # fog + night
 python src/run_addons.py --tracks outputs/trackD_rain_4_0 outputs/trackC
 ```
 
+### 7d. Robustness add-ons (threshold rule, on-time utility, bootstrap, sweeps) -- CPU, fast
+```bash
+python src/run_robustness.py --track <track>            # threshold + utility + bootstrap
+python src/run_robustness.py --track outputs/trackD_fog_6_0 --sweeps   # + deadline & kappa sweeps
+```
+Reuses the track's `phase1` + `phase3` (no re-profiling) and reproduces the exact RQ-H
+substrate (same seeds/draws as Phase 5), then computes on the same draws: the threshold-rule
+baseline (`p_cont=max(b_c,1[b_f>0.5])`) vs joint vs decoupled deadline-miss with paired CIs;
+on-time utility `U = mean_t a_t * 1[lat_t <= D]` (joint vs decoupled); and a moving-block
+bootstrap (block 50, B 2000, pooled across seeds) of the per-frame miss reduction. With
+`--sweeps` (auto-on for fog) it also runs the deadline-strictness sweep (0.8-1.2x) and the
+kappa sweep (0, 0.5, 0.75, 1.0). Writes `outputs/<track>/extras/robustness.json` and prints a
+summary (the printed RQ-H line is a sanity check: it must equal the committed Phase 5 number).
+
 Return results: `git add outputs/<track>/extras outputs/<track>_extended` and push, or zip
 and send.
