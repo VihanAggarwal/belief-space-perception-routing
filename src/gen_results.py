@@ -130,6 +130,42 @@ def main():
                 L.append(f"| {r['config']} | {r['model']} | {int(r['imgsz'])} | {r['acc_overall']:.2f} | "
                          f"{r['lat_median_nom_ms']:.1f} | {r['meets_deadline_con']} |")
 
+    # 7. Robustness: threshold rule, on-time utility, bootstrap
+    rob = {t: jload(OUT / t / "extras" / "robustness.json") for t in tracks}
+    rob = {t: r for t, r in rob.items() if r}
+    if rob:
+        L += ["", "## 7. Robustness: threshold rule, on-time utility, temporal bootstrap",
+              "Same draws as RQ-H. Threshold rule = hard union `max(b_c,1[b_f>0.5])`; utility",
+              "`U=mean a_t*1[lat<=D]` (late frame scores 0); bootstrap = moving-block (50, B=2000),",
+              "pooled across seeds, of the per-frame miss reduction.", "",
+              "| track | decoup miss | threshold miss | joint miss | joint-vs-threshold (95% CI) | U joint | U decoup | dU joint-decoup (95% CI) | bootstrap miss-reduction (95% CI) |",
+              "|---|---|---|---|---|---|---|---|---|"]
+        for t in tracks:
+            r = rob.get(t)
+            if not r:
+                continue
+            m = r["miss"]; u = r["utility"]
+            jt = r["joint_minus_threshold_miss"]; du = r["utility_joint_minus_decoupled"]
+            b = r["bootstrap_miss_reduction"]
+            L.append(f"| {NAMES.get(t,t)} | {m['decoupled']['mean']:.3f} | {m['threshold']['mean']:.3f} | "
+                     f"{m['joint']['mean']:.3f} | {jt['mean']*100:+.2f}pp [{jt['lo']*100:.2f},{jt['hi']*100:.2f}]"
+                     f"{'*' if jt['significant'] else ''} | {u['joint']['mean']:.3f} | {u['decoupled']['mean']:.3f} | "
+                     f"{du['mean']*100:+.2f}pp [{du['lo']*100:.2f},{du['hi']*100:.2f}]{'*' if du['significant'] else ''} | "
+                     f"{b['mean_pp']:+.2f}pp [{b['lo_pp']:.2f},{b['hi_pp']:.2f}] |")
+        # fog sweeps
+        fog = rob.get("trackD_fog_6_0")
+        if fog and "deadline_sweep" in fog:
+            L += ["", "**RADIATE fog deadline-strictness sweep** (multiplier x self-calibrated deadline):", "",
+                  "| mult | deadline (ms) | reduction (95% CI) |", "|---|---|---|"]
+            for s in fog["deadline_sweep"]:
+                L.append(f"| {s['mult']}x | {s['deadline_ms']:.0f} | {s['reduction_pp']:+.2f}pp "
+                         f"[{s['lo_pp']:.2f},{s['hi_pp']:.2f}]{'*' if s['significant'] else ''} |")
+            L += ["", "**RADIATE fog kappa sweep** (joint-vs-decoupled reduction; kappa=0 collapses to decoupled):", "",
+                  "| kappa | reduction (95% CI) |", "|---|---|"]
+            for s in fog["kappa_sweep"]:
+                L.append(f"| {s['kappa']} | {s['reduction_pp']:+.2f}pp [{s['lo_pp']:.2f},{s['hi_pp']:.2f}]"
+                         f"{'*' if s['significant'] else ''} |")
+
     L += ["", "## Figures (committed under each track's outputs)",
           "- RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`",
           "- RQ-A1 / RQ-A2: `outputs/<track>/phase6/`",

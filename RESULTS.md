@@ -85,6 +85,39 @@ Significant-positive cells out of 20, and peak joint-vs-decoupled reduction. Cou
 | C8 | yolo11s | 960 | 0.65 | 17.7 | True |
 | C9 | yolo11s | 640 | 0.64 | 10.5 | True |
 
+## 7. Robustness: threshold rule, on-time utility, temporal bootstrap
+Same draws as RQ-H. Threshold rule = hard union `max(b_c,1[b_f>0.5])`; utility
+`U=mean a_t*1[lat<=D]` (late frame scores 0); bootstrap = moving-block (50, B=2000),
+pooled across seeds, of the per-frame miss reduction.
+
+| track | decoup miss | threshold miss | joint miss | joint-vs-threshold (95% CI) | U joint | U decoup | dU joint-decoup (95% CI) | bootstrap miss-reduction (95% CI) |
+|---|---|---|---|---|---|---|---|---|
+| Track D - RADIATE fog | 0.423 | 0.333 | 0.329 | -0.47pp [-2.49,1.55] | 0.532 | 0.532 | +0.07pp [-3.65,3.79] | +9.40pp [6.87,12.13] |
+| Track D - RADIATE night | 0.371 | 0.317 | 0.313 | -0.47pp [-3.73,2.80] | 0.685 | 0.626 | +5.87pp [2.87,8.86]* | +5.87pp [3.27,8.67] |
+| Track D - RADIATE rain (real adverse weather) | 0.244 | 0.233 | 0.233 | -0.07pp [-0.25,0.12] | 0.622 | 0.613 | +0.86pp [0.12,1.60]* | +1.13pp [0.27,2.33] |
+| Track D - RADIATE snow | 0.341 | 0.309 | 0.313 | +0.47pp [-2.09,3.03] | 0.617 | 0.598 | +1.93pp [-0.40,4.25] | +2.80pp [1.13,4.73] |
+| Track C - WoodScape Soiling, fisheye (lens contamination) | 0.271 | 0.255 | 0.256 | +0.05pp [-0.01,0.12] | 0.520 | 0.518 | +0.23pp [-0.13,0.58] | +1.56pp [1.14,1.99] |
+| Track A - TartanDrive off-road (309-frame segment) | 0.279 | 0.249 | 0.249 | +0.00pp [0.00,0.00] | 0.628 | 0.601 | +2.67pp [2.16,3.17]* | +3.00pp [0.60,4.80] |
+
+**RADIATE fog deadline-strictness sweep** (multiplier x self-calibrated deadline):
+
+| mult | deadline (ms) | reduction (95% CI) |
+|---|---|---|
+| 0.8x | 174 | +0.00pp [0.00,0.00] |
+| 0.9x | 196 | +0.00pp [0.00,0.00] |
+| 1.0x | 218 | +9.40pp [7.07,11.73]* |
+| 1.1x | 239 | +0.67pp [-0.11,1.44] |
+| 1.2x | 261 | +0.67pp [-0.11,1.44] |
+
+**RADIATE fog kappa sweep** (joint-vs-decoupled reduction; kappa=0 collapses to decoupled):
+
+| kappa | reduction (95% CI) |
+|---|---|
+| 0.0 | +0.00pp [0.00,0.00] |
+| 0.5 | +3.00pp [-0.14,6.14] |
+| 0.75 | +9.27pp [7.13,11.41]* |
+| 1.0 | +10.93pp [6.59,15.28]* |
+
 ## Figures (committed under each track's outputs)
 - RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`
 - RQ-A1 / RQ-A2: `outputs/<track>/phase6/`
