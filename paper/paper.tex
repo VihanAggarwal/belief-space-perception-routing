@@ -22,9 +22,8 @@
 
 \begin{document}
 
-\title{Belief-Space Perception Routing:\\
-Coupling Sensor-Fault and Compute-Contention Beliefs\\
-for Deadline-Constrained Adaptive Inference}
+\title{Belief-Space Perception Routing: Coupling Sensor-Fault\\
+and Compute-Contention Beliefs under Inference Deadlines}
 
 \author{
   \IEEEauthorblockN{Sparsh Roy}
@@ -605,8 +604,9 @@ $0.0$\,pp (negative control), while its $309$-frame
 high-degradation segment yields $+3.0$\,pp ($[2.49,3.51]$) at
 near-matched accuracy ($0.877$ vs.\ $0.880$)---real off-road faults,
 real benefit. Crucially, \emph{every} uncoupled control is exactly
-$0.0$\,pp: the benefit appears if and only if real fault--contention
-coupling is present.
+$0.0$\,pp: within the evaluated regimes the benefit appears only when
+fault--contention coupling is imposed and disappears in the matched
+uncoupled controls.
 Fig.~\ref{fig:centerpiece} shows the per-condition view for fog,
 the strongest case.
 
@@ -677,10 +677,11 @@ primary metric because a late detection is unusable downstream.
 Because deadline-miss rate alone can reward aggressive downshifting,
 we also report a per-frame combined metric that charges for the
 accuracy sacrifice: on-time utility
-$U = \frac{1}{T}\sum_{t} a_t \,\mathbf{1}[\ell_t \le D]$, the mean
-task accuracy of frames that meet the deadline (a late frame scores
-zero). Unlike $\bar{a}(1{-}m)$, this preserves the per-frame link
-between the chosen config's accuracy and its latency.
+$U = \frac{1}{T}\sum_{t} a_t \,\mathbf{1}[\ell_t \le D]$: each frame
+contributes its accuracy if it meets the deadline and zero if late,
+averaged over all $T$ frames. Unlike $\bar{a}(1{-}m)$, this
+preserves the per-frame link between the chosen config's accuracy
+and its latency.
 Table~\ref{tab:utility} shows the joint policy's point estimate of
 $U$ is nonnegative in all six conditions, significantly positive for
 off-road, rain, and night (paired CIs exclude zero); the snow, fog,
@@ -694,8 +695,9 @@ an additional benefit where late results are unusable.
 
 \begin{table}[htbp]
 \caption{Per-frame on-time utility
-$U=\frac{1}{T}\sum_t a_t\mathbf{1}[\ell_t\le D]$ (mean accuracy over
-frames meeting the deadline; a late frame scores zero). $\Delta U$
+$U=\frac{1}{T}\sum_t a_t\mathbf{1}[\ell_t\le D]$ (per-frame on-time
+utility: each frame scores its accuracy if on time, zero if late).
+$\Delta U$
 (joint $-$ decoupled, pp) with paired 95\% CI; $^\ast$ excludes
 zero. All point estimates are nonnegative.}
 \label{tab:utility}
@@ -733,17 +735,24 @@ is under-powered at $n{=}5$); the point is that we detect no
 advantage for the soft form. The contribution is therefore the
 \emph{coupling itself}---feeding sensor-fault belief into contention
 anticipation---rather than the particular noisy-OR functional form;
-a hand-set threshold is an equally good realization. The threshold
+a hand-set threshold is a similarly performing realization under the
+tested conditions. The threshold
 comparison shows only that the particular fusion \emph{function} is
 not essential to RQ-H; both policies still consume the HMM-derived
 beliefs $b_f, b_c$, and RQ-A1 separately evaluates the contribution
-of temporal belief smoothing. We also train a small MLP router on
-the same belief features (oracle config labels, split by sequence):
-it is competitive with the belief policy but does not consistently
-beat it---lower deadline-miss on three tracks, higher on three,
-with high variance on these single-sequence splits---again pointing
-to the coupled features, not the routing function, as the source of
-the gain. This
+of temporal belief smoothing. We also train a small two-hidden-layer
+MLP ($32$--$16$ units, ReLU; cross-entropy, Adam) mapping the same
+five features the policies use---the three sensor-channel beliefs,
+the compute belief, and the deadline---to a config, supervised by
+per-frame oracle labels. Each track is split \emph{temporally}
+(first $70\%$ of frames train, last $30\%$ held out, no frame
+shared) and evaluated over five seeds with the same hysteresis as
+the policies. On held-out frames the MLP is competitive but does not
+consistently beat the belief policy (lower deadline-miss on three
+tracks, higher on three), with high variance on these short
+single-sequence traces; we report it as a baseline, not a
+contribution. The takeaway is again that the value lies in the
+coupled features---shared by both---not the routing function. This
 similarity is stable across observation-noise levels (the
 joint$-$threshold gap stays within $\pm1.2$\,pp, n.s., for noise
 $\sigma$ up to $0.75$ on fog and rain), so soft fusion confers no
@@ -836,11 +845,14 @@ the gain.
 Fig.~\ref{fig:phase} generalizes this to a two-dimensional
 (coupling $\times$ fault-onset-rate) sweep of controlled regimes.
 The $\kappa{=}0$ control row is exactly $0.0$\,pp---and is exactly
-$0.0$ across \emph{all seven} tracks---while the benefit grows with
-both the coupling strength and the onset rate (grid maxima
-$7.7$--$10.5$\,pp). This is the cleanest single statement of the
-mechanism: no coupling, no benefit; more coupling and more faults to
-anticipate, more benefit.
+$0.0$ across \emph{all seven} tracks---while under positive coupling
+the benefit is present but depends \emph{nonlinearly} on both the
+coupling strength and the onset rate (grid maxima $7.7$--$10.5$\,pp;
+on fog the largest cells fall at $\kappa{=}0.2$ with high onset
+rate, not at the largest $\kappa$). The robust, intended reading is
+the falsification one: the benefit vanishes at zero coupling and
+appears only under positive coupling, its magnitude a nonlinear
+function of coupling strength and fault-onset rate.
 
 \begin{figure}[t]
   \centering
@@ -849,8 +861,9 @@ anticipate, more benefit.
   deadline-miss reduction over a coupling-strength $\times$
   fault-onset-rate grid of controlled regimes. The bottom row
   ($\kappa{=}0$) is the no-coupling control and is exactly zero
-  (here and on all seven tracks); the benefit emerges and grows only
-  with coupling and onset rate.}
+  (here and on all seven tracks); under positive coupling the
+  benefit is present but varies nonlinearly with both coupling and
+  onset rate.}
   \label{fig:phase}
 \end{figure}
 
