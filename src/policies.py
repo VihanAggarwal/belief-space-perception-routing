@@ -80,8 +80,13 @@ def build_frontier_model(deadline_s: float, lat_dists: Dict[str, Dict[str, np.nd
     for c in lat_dists:
         p_meet[c] = {st: latency_cdf_leq(lat_dists[c][st], deadline_s)
                      for st in ("nominal", "contended")}
+    # cost rank by nominal median latency (cheapest = lowest latency); works for any
+    # config-set size. For the default 4 configs this reproduces the original ordering.
+    med = {c: float(np.median(lat_dists[c]["nominal"])) if len(lat_dists[c]["nominal"]) else 0.0
+           for c in lat_dists}
+    cost_rank = {c: i for i, c in enumerate(sorted(lat_dists, key=lambda c: med[c]))}
     return FrontierModel(deadline_s=deadline_s, p_meet=p_meet,
-                         acc_nominal=acc_nominal, acc_faulted=acc_faulted)
+                         acc_nominal=acc_nominal, acc_faulted=acc_faulted, cost_rank=cost_rank)
 
 
 # ---------------------------------------------------------------------------

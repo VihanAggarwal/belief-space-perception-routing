@@ -35,6 +35,9 @@ def load_config(path: str | None = None) -> dict:
         paths["data_root"] = os.environ["DATA_ROOT"]
     if os.getenv("DEVICE"):
         cfg.setdefault("device", {})["mode"] = os.environ["DEVICE"]
+    # Extended frontier: merge the extra configs into the profiled set (opt-in).
+    if os.getenv("EXTENDED_FRONTIER") == "1" and cfg.get("configs_extended"):
+        cfg["configs"] = {**cfg["configs"], **cfg["configs_extended"]}
     return cfg
 
 

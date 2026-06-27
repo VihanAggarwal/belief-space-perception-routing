@@ -181,3 +181,45 @@ phases 2-6 (RQ-H / RQ-A1 / RQ-A2), all namespaced to `outputs/trackC/`.
   detections are denser than off-road TartanDrive, giving a richer accuracy axis.
 - MPS specifics (Section 5) apply unchanged.
 - Return results: `git add outputs/trackC` and push, or zip and send.
+
+---
+
+## 7. Add-on analysis sections (run on tracks you ALREADY ran)
+
+These three reuse a track's existing `outputs/<track>/` (and, for the extended frontier,
+its frames). You do NOT re-run the whole pipeline. Replace `<track>` with the outputs dir
+you used (e.g. `outputs/trackA`, `outputs/trackD_rain_4_0`, `outputs/trackC`) and
+`<frames>` with that track's frame dir (e.g. `data/frames/turnpike_afternoon_fall_0`,
+`data/frames/radiate_rain_4_0`, `data/frames/woodscape_soiling`).
+
+### 7a. Learned routing baseline (fair MLP on the same belief features) -- CPU, fast
+```bash
+python src/run_learned_router.py --track <track>
+```
+Trains a small MLP on the per-frame oracle config labels (split by sequence, not frame),
+then compares the joint belief policy vs the learned router on deadline-miss + accuracy
+with 95% CIs over 5 seeds. Writes `outputs/<track>/extras/learned_router.{json,png}`.
+Both outcomes are valid (joint wins -> structure matters; learned matches/wins -> the
+value is in the features).
+
+### 7b. RQ-H phase diagram (coupling x onset-rate sweep) -- CPU, fast
+```bash
+python src/run_injection_sweep.py --track <track>
+```
+Sweeps a (coupling-strength x fault-onset-rate) grid of CONTROLLED regimes over the
+track's real latency/accuracy profile, recording the joint-vs-decoupled deadline-miss
+reduction with CIs and achieved onset counts. Writes
+`outputs/<track>/extras/phase_diagram.{json,png}`. The coupling=0 row is the control
+(should be ~0); the benefit grows with coupling and onset rate.
+
+### 7c. Extended dense frontier (9 configs) -- GPU, re-profiles
+```bash
+python src/run_extended_frontier.py --track-outputs <track> --frames <frames> --profile-n 1500
+```
+Re-profiles a dense 9-config Pareto set (adds yolo11x@960, yolo11m@1280/640, yolo11s@960/640)
+reusing the track's labels, and re-runs routing, into `outputs/<track>_extended/`. The
+original 4-config results are untouched. This is the only add-on that needs the GPU and
+the frames. (On a Mac, profiling 9 configs is heavier; `--profile-n 1500` bounds it.)
+
+Return results: `git add outputs/<track>/extras outputs/<track>_extended` and push, or zip
+and send.
