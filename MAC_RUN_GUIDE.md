@@ -118,7 +118,66 @@ Otherwise zip `outputs/` and send it to Vihan.
 
 ---
 
-## 6. Track C (WoodScape fisheye) — coming later
-Not built yet. When added it will need the WoodScape Soiling dataset (gated, Valeo
-registration) and fisheye-correct channels (mask-based occlusion ground truth, polar
-blur metric, undistort-before-detection). A separate section will be added here then.
+## 6. Track C — WoodScape Soiling (fisheye, lens contamination)
+
+Track C is the cross-optics generalization track: real lens-soiling degradation on a
+fisheye camera. It is done the rigorous way (Option B): the fisheye image is undistorted
+to a rectilinear projection (Valeo's own camera model) before YOLO; **occlusion is real
+ground truth from the soiling masks** (not optical flow); **blur is a polar-coordinate
+metric** (so radial distortion does not masquerade as blur); illumination is histogram
+entropy. Pseudo-GT is YOLO11x on the undistorted frames, same as every track.
+
+### 6a. Get the data (download only the soiling subset, a few GB, < 10 GB)
+
+You do NOT need the full ~29 GB WoodScape. You need only the **soiling subset**: the
+public soiling dataset is **5,000 fisheye images (4,000 train + 1,000 test)** with
+soiling masks (classes: clear / transparent / semi-transparent / opaque). That is
+roughly **2-4 GB**, well under 10 GB.
+
+Where: WoodScape is a public Google Drive folder (from the upstream repo's
+`data/download.txt`):
+```
+https://drive.google.com/drive/folders/1X5JOMEfVlaXfdNy24P8VA-jMs0yzf_HR
+```
+In that folder, open the **soiling** item (a folder/zip named like `soiling_dataset`)
+and download just that. Two ways:
+
+- **Drive web UI (simplest on a Mac):** right-click the soiling folder -> Download,
+  then unzip into `data/woodscape_soiling/`.
+- **Script:** copy the soiling item's "Get link" URL and run
+  ```bash
+  pip install gdown
+  python src/download_woodscape.py --url "<soiling Drive link>"
+  ```
+
+After this you should have, for example:
+```
+data/woodscape_soiling/train/rgbImages/*.png     (fisheye RGB)
+data/woodscape_soiling/train/gtLabels/*.png      (soiling masks)
+```
+(The exact folder nesting varies by release; the extractor searches for `rgbImages/`
+and `gtLabels/` and matches masks to images by filename, so any layout under the
+soiling root works.)
+
+### 6b. Run Track C
+
+(Environment is the same one-time setup as Section 1.)
+```bash
+python src/run_woodscape.py --soiling-dir data/woodscape_soiling/train
+# bound it if you like (frame collection, 7-8 frame bursts per scene):
+python src/run_woodscape.py --soiling-dir data/woodscape_soiling/train --max-frames 1500
+```
+This runs extract -> phase1 (fisheye-correct channels + threshold-and-smooth labels) ->
+phases 2-6 (RQ-H / RQ-A1 / RQ-A2), all namespaced to `outputs/trackC/`.
+
+### 6c. Track C notes
+- **Calibration:** undistortion defaults to Valeo's vendored example calibration. If
+  your soiling release ships per-image calibration, pass `--calib <calib.json>` to
+  `run_woodscape.py` for the exact soiling-camera model.
+- **Temporal axis:** WoodScape soiling is a frame collection (7-8 consecutive frames per
+  scene), so the fault timeline is the dataset ordering rather than a continuous video.
+  Documented; printed at runtime.
+- **Detections:** WoodScape is automotive (cars, pedestrians, cyclists), so YOLO/COCO
+  detections are denser than off-road TartanDrive, giving a richer accuracy axis.
+- MPS specifics (Section 5) apply unchanged.
+- Return results: `git add outputs/trackC` and push, or zip and send.
