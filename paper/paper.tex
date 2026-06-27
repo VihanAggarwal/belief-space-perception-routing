@@ -22,8 +22,8 @@
 
 \begin{document}
 
-\title{Belief-Space Perception Routing: Coupling Sensor-Fault\\
-and Compute-Contention Beliefs under Inference Deadlines}
+\title{Coupled Belief-Space Routing for Sensor Faults and\\
+Compute Contention under Inference Deadlines}
 
 \author{
   \IEEEauthorblockN{Sparsh Roy}
@@ -59,7 +59,7 @@ inference configuration.
 We evaluate on three real datasets and two camera geometries:
 TartanDrive off-road driving, RADIATE rain/snow/fog/night, and
 WoodScape fisheye soiling, with five seeds and 95\% confidence
-intervals. When faults and contention are coupled, the joint router
+intervals. Under the imposed coupled regimes, the coupled router
 reduces deadline misses by $1.1$ to $9.4$ percentage points,
 significant in five of six fault-bearing conditions. Fog is the
 largest case: faults are rare, but severe enough to make the
@@ -70,7 +70,8 @@ about as well as the noisy-OR policy, which places the contribution
 in the coupling signal rather than its functional form. Experiments
 ran on an Apple~M5; since the deadline is calibrated per device, we
 report relative deadline-miss changes rather than absolute latency.
-Code and data are released.%
+Code, configurations, processed outputs, and data-acquisition
+instructions are released.%
 \footnote{Repository: \url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
 \end{abstract}
 
@@ -127,7 +128,7 @@ data loading, belief estimation, routing, and statistical analysis.
 
 The main result is shown in Fig.~\ref{fig:summary}. When sensor
 fault and compute contention are coupled, modeling the link reduces
-deadline misses. The size of the reduction follows how much the
+deadline misses. The size of the reduction appears to follow how much the
 degradation stresses the deadline, not simply how often faults
 occur. Fog is the clearest example: only $1.9\%$ of frames are
 faulted, but those episodes are severe enough that coupling saves
@@ -145,15 +146,16 @@ night, but hurts the fast flicker of rain droplets.
   \centering
   \includegraphics[width=\columnwidth]{fig_rqh_summary.png}
   \caption{Headline result (RQ-H). Reduction in deadline-miss rate
-  of the joint policy over the decoupled baseline, by condition,
+  of the coupled policy over the decoupled baseline, by condition,
   with 95\% CIs over five seeds. Filled circles: coupled regime,
   CI excludes zero. Square: coupled but not significant (snow).
   Grey crosses: the matched uncoupled control, exactly $0.0$\,pp in
   every case. TartanDrive appears twice: the full trajectory (no
   natural faults) is a clean negative control at $0.0$\,pp, while
   its high-degradation off-road segment is a significant $+3.0$\,pp.
-  The benefit tracks fault severity, not frequency: fog has the
-  fewest faults yet the largest effect.}
+  The condition-level pattern is more consistent with
+  deadline-binding degradation severity than with fault frequency
+  alone.}
   \label{fig:summary}
 \end{figure}
 
@@ -208,7 +210,7 @@ for embedded radar. These methods adapt computation, but they do
 not model runtime contention as a latent state tied to sensor
 health.
 
-\subsection{Joint Fault and Resource Modeling}
+\subsection{Coupled Fault and Resource Modeling}
 
 PRAM-R \cite{pramr2025} is the closest concurrent work: it routes
 modalities with an LLM-guided reliability mechanism, but it does not
@@ -382,7 +384,7 @@ they form the contention probability $p_{\text{cont}}^t$:
 \textbf{Decoupled}: $p_{\text{cont}}^t = b_c^t$ (compute belief
 alone).
 
-\textbf{Joint} (noisy-OR):
+\textbf{Coupled} (noisy-OR):
 \begin{equation}
   p_{\text{cont}}^t = 1 - (1 - b_c^t)\,(1 - \kappa\, b_f^t)
   \label{eq:noisyor}
@@ -407,7 +409,7 @@ evaluate abstention separately against an oracle.
 \subsection{Evaluation Policies}
 
 \begin{itemize}
-  \item \textbf{CoupledPolicy} (``joint''): noisy-OR coupling
+  \item \textbf{CoupledPolicy}: noisy-OR coupling
     (Eq.~\eqref{eq:noisyor}), $\kappa$ fit on calibration draw.
   \item \textbf{DecoupledPolicy}: compute belief only, same
     feasibility set.
@@ -559,10 +561,10 @@ dev-environment (Apple M5/MPS).}
 \end{tabular}
 \end{table}
 
-\subsubsection{RQ-H: Joint vs.\ Decoupled (Headline)}
+\subsubsection{RQ-H: Coupled vs.\ Decoupled (Headline)}
 
 Table~\ref{tab:rqh} and Fig.~\ref{fig:summary} give the main
-result. In the coupled regime, the joint policy lowers
+result. In the coupled regime, the coupled policy lowers
 deadline-miss rate in every fault-bearing condition. The reduction
 is significant in five of six: the off-road segment, rain, fog,
 night, and soiling. Snow is positive in point estimate, but its CI
@@ -577,8 +579,8 @@ scheduled independently. Fig.~\ref{fig:centerpiece} shows the
 per-condition view for fog, the strongest case.
 
 \begin{table*}[htbp]
-\caption{RQ-H. Deadline-miss rate, joint vs.\ decoupled, coupled
-regime. $\Delta = $ miss-rate reduction (decoupled $-$ joint), pp,
+\caption{RQ-H. Deadline-miss rate, coupled vs.\ decoupled, coupled
+regime. $\Delta = $ miss-rate reduction (decoupled $-$ coupled), pp,
 with 95\% CI; $^\ast$ = CI excludes zero. $r$ is the measured
 fault--contention correlation in the coupled regime; $\kappa$ is
 the fitted coupling coefficient. Every uncoupled control yields
@@ -591,7 +593,7 @@ $0.0$\,pp.}
 \toprule
 \textbf{Track} & \textbf{Condition} & \textbf{Frames} &
 \textbf{Fault \%} & \textbf{$r$} & \textbf{$\kappa$} &
-\textbf{Joint miss} & \textbf{Decoup.\ miss} &
+\textbf{Cpl.\ miss} & \textbf{Decoup.\ miss} &
 \textbf{$\Delta$ (pp)} & \textbf{Uncoupled $\Delta$} \\
 \midrule
 A & TartanDrive (full, clean) & 1198 & 0.0  & --   & --   & --    & --    & $0.00$ & $0.00$ \\
@@ -609,9 +611,9 @@ C & WoodScape soiling   & 3303 & 8.1  & 0.56 & 0.80 & 0.256 & 0.271 & $+1.56\ [1
   \centering
   \includegraphics[width=\columnwidth]{fig_rqh_fog.png}
   \caption{Per-condition RQ-H centerpiece (RADIATE fog, the
-  strongest effect). Joint vs.\ decoupled deadline-miss across five
+  strongest effect). Coupled vs.\ decoupled deadline-miss across five
   seeds in the coupled regime, with the uncoupled control. The
-  joint policy anticipates rare but severe fog episodes that make
+  coupled policy anticipates rare but severe fog episodes that make
   the reference config infeasible under contention.}
   \label{fig:centerpiece}
 \end{figure}
@@ -626,8 +628,8 @@ change fewer routing decisions. This is the regime where routing
 matters most: degradation is severe enough to bind the deadline.
 
 The most severe condition also shows the tradeoff. On rain, night,
-and soiling, joint and decoupled task accuracy are nearly matched
-(rain: $0.855$ vs.\ $0.857$). On fog, the joint policy gives up
+and soiling, coupled and decoupled task accuracy are nearly matched
+(rain: $0.855$ vs.\ $0.857$). On fog, the coupled policy gives up
 task accuracy ($0.861$ vs.\ $0.954$) to cut misses by $9.4$\,pp,
 because it downshifts before predicted contention. We therefore
 treat deadline-miss as the primary metric: in a deadline-controlled
@@ -653,7 +655,7 @@ the accuracy cost cancels it in expected on-time accuracy.
 $U=\frac{1}{T}\sum_t a_t\mathbf{1}[\ell_t\le D]$ (per-frame on-time
 utility: each frame scores its accuracy if on time, zero if late).
 $\Delta U$
-(joint $-$ decoupled, pp) with paired 95\% CI; $^\ast$ excludes
+(coupled $-$ decoupled, pp) with paired 95\% CI; $^\ast$ excludes
 zero. All point estimates are nonnegative.}
 \label{tab:utility}
 \centering
@@ -661,7 +663,7 @@ zero. All point estimates are nonnegative.}
 \setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Condition} & \textbf{$U$ jnt} & \textbf{$U$ dec} &
+\textbf{Condition} & \textbf{$U$ cpl} & \textbf{$U$ dec} &
 \textbf{$\Delta U$ (pp)} & \textbf{95\% CI} \\
 \midrule
 TartanDrive off-road & 0.628 & 0.601 & $+2.67^\ast$ & $[2.16, 3.17]$ \\
@@ -681,8 +683,8 @@ rule-based baseline:
 $p_{\text{cont}}^t = \max(b_c^t,\,\mathbf{1}[b_f^t > 0.5])$. This
 hard union downshifts whenever either belief is high. As shown in
 Table~\ref{tab:baseline}, the threshold rule performs similarly to
-the noisy-OR joint policy on every condition. The
-joint$-$threshold difference stays within $\pm0.5$\,pp and every CI
+the noisy-OR coupled policy on every condition. The
+coupled$-$threshold difference stays within $\pm0.5$\,pp and every CI
 includes zero, while both coupled methods beat the decoupled
 baseline by nearly the same amount. We do not claim formal
 equivalence; an equivalence test with a $\pm1$\,pp margin is
@@ -699,16 +701,40 @@ beliefs, compute belief, and deadline. Supervision comes from
 per-frame oracle config labels. Each track is split temporally, with
 the first $70\%$ of frames for training and the last $30\%$ held out,
 and no frame shared. On held-out frames, the MLP is competitive but
-inconsistent: lower deadline-miss on three tracks and higher on
-four, with high variance on short single-sequence traces. We report
-it as a baseline rather than a contribution. Across observation
-noise levels, the joint$-$threshold gap remains within
+inconsistent across the seven track-level sequence splits in
+Table~\ref{tab:mlp}: lower deadline-miss on three splits and higher
+on four. We report it as a baseline rather than a contribution.
+Across observation noise levels, the coupled$-$threshold gap remains within
 $\pm1.2$\,pp, n.s., for noise $\sigma$ up to $0.75$ on fog and rain.
 
 \begin{table}[htbp]
+\caption{Learned-router audit. The MLP uses the same belief features
+as the coupled policy and is trained on temporally split oracle
+labels. $\Delta$ = MLP $-$ coupled deadline-miss rate, pp;
+$^\ast$ = paired CI excludes zero.}
+\label{tab:mlp}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Split} & \textbf{Cpl.} & \textbf{MLP} & \textbf{$\Delta$ (pp)} \\
+\midrule
+Fog      & 0.164 & 0.167 & $+0.22$ \\
+Night    & 0.427 & 0.169 & $-25.78^\ast$ \\
+Rain     & 0.000 & 0.311 & $+31.11^\ast$ \\
+Snow     & 0.289 & 0.324 & $+3.56$ \\
+Soiling  & 0.301 & 0.339 & $+3.79^\ast$ \\
+A-full   & 0.340 & 0.204 & $-13.56$ \\
+A-seg.   & 0.422 & 0.222 & $-20.00^\ast$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
 \caption{Deadline-miss rate (coupled regime): a simple threshold
-rule performs similarly to the noisy-OR joint policy.
-$\Delta$(J$-$thr) is the joint advantage over the threshold rule
+rule performs similarly to the noisy-OR coupled policy.
+$\Delta$(Cpl$-$thr) is the coupled-policy advantage over the threshold rule
 (pp, 95\% CI); all include zero (no detectable difference).}
 \label{tab:baseline}
 \centering
@@ -717,7 +743,7 @@ $\Delta$(J$-$thr) is the joint advantage over the threshold rule
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Cond.} & \textbf{Decoup.} & \textbf{Threshold} &
-\textbf{Joint} & \textbf{$\Delta$(J$-$thr)} \\
+\textbf{Cpl.} & \textbf{$\Delta$(Cpl$-$thr)} \\
 \midrule
 A-seg   & 0.279 & 0.249 & 0.249 & $+0.0\ [-0.0,0.0]$ \\
 rain    & 0.244 & 0.233 & 0.233 & $+0.1\ [-0.1,0.3]$ \\
@@ -755,7 +781,7 @@ real; per-condition deadline sweeps remain future work.
 
 \begin{table}[htbp]
 \caption{Deadline-strictness sweep (RADIATE fog, coupled regime).
-Multiplier scales the self-calibrated deadline. The joint advantage
+Multiplier scales the self-calibrated deadline. The coupled-policy advantage
 peaks where the reference config is borderline-feasible.}
 \label{tab:deadline}
 \centering
@@ -797,7 +823,7 @@ zero benefit.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig_phase_diagram.png}
-  \caption{RQ-H phase diagram (RADIATE fog): joint$-$decoupled
+  \caption{RQ-H phase diagram (RADIATE fog): coupled$-$decoupled
   deadline-miss reduction over a coupling-strength $\times$
   fault-onset-rate grid of controlled regimes. The bottom row
   ($\kappa{=}0$) is the no-coupling control and is exactly zero
@@ -985,7 +1011,7 @@ We built a deadline-aware perception router that estimates
 sensor-fault belief and compute-contention belief with separate HMMs
 and couples them at decision time. Across three real datasets and
 two camera geometries, coupling reduced deadline misses by $1.1$ to
-$9.4$ points when the two failures were correlated. The gain was
+$9.4$ points when contention was scheduled to depend on fault onset. The gain was
 zero in every matched uncoupled control and zero on a fault-free
 trajectory. The benefit appears to track how severely a degradation
 strains the deadline, not just how often faults occur, and a simple
