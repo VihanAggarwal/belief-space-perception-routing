@@ -42,23 +42,28 @@ import torch; print("torch", torch.__version__, "cuda", torch.cuda.is_available(
 """),
     MD("""## 2. Get the code
 
-The repo is private. Paste a GitHub token (repo scope) when prompted, or set
-`USE_UPLOAD = True` and upload a `src.zip` of the `src/` folder + `config.yaml`.
+The repo is public, so this just clones it (no token needed). If the repo is ever made
+private again, the cell will prompt for a GitHub token (repo scope) automatically. Or set
+`USE_UPLOAD = True` to upload a `src.zip` of the `src/` folder + `config.yaml` instead.
 """),
     CODE("""
 import os, getpass, subprocess
 USE_UPLOAD = False
 REPO = "VihanAggarwal/belief-space-perception-routing"
-if not USE_UPLOAD:
-    tok = getpass.getpass("GitHub token (repo scope): ").strip()
-    url = f"https://{tok}@github.com/{REPO}.git"
-    subprocess.run(["git", "clone", "--depth", "1", url, "/content/proj"], check=True)
-    os.chdir("/content/proj")
-else:
+if USE_UPLOAD:
     from google.colab import files
     up = files.upload()  # upload src.zip and config.yaml
     os.makedirs("/content/proj", exist_ok=True); os.chdir("/content/proj")
     !unzip -o src.zip -d /content/proj
+else:
+    # try a public clone first; fall back to a token only if it's private
+    r = subprocess.run(["git", "clone", "--depth", "1",
+                        f"https://github.com/{REPO}.git", "/content/proj"])
+    if r.returncode != 0:
+        tok = getpass.getpass("Repo is private -- paste a GitHub token (repo scope): ").strip()
+        subprocess.run(["git", "clone", "--depth", "1",
+                        f"https://{tok}@github.com/{REPO}.git", "/content/proj"], check=True)
+    os.chdir("/content/proj")
 print("cwd", os.getcwd()); print(os.listdir("."))
 """),
     MD("""## 3. Download a TartanDrive 2.0 bag chunk and extract frames
