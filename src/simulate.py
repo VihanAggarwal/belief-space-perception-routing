@@ -43,6 +43,7 @@ class Substrate:
     kappa: float
     deadline_s: float
     p_self_transition: float        # sensor HMM nominal self-transition (for dwell)
+    s_belief_channels: np.ndarray = None  # T x 3 per-channel P(fault) (blur,illum,occ); for the learned router
 
 
 def calibration_kappa(cfg: dict, regime: str, cal_seeds) -> float:
@@ -74,7 +75,10 @@ def load_phase_outputs(cfg: dict):
 
 def build_substrate(cfg: dict, regime: str, seed: int) -> Substrate:
     lab, acc_df, latnpz = load_phase_outputs(cfg)
-    keys = pol.CONFIG_KEYS
+    # config set is dynamic: derived from config.yaml (supports the extended frontier).
+    # Set the module-level CONFIG_KEYS so policies/oracle use the same set this run.
+    keys = list(cfg["configs"].keys())
+    pol.CONFIG_KEYS = keys
     T = min(len(lab), int(acc_df["frame_idx"].max()) + 1)
     lab = lab.iloc[:T].reset_index(drop=True)
 
@@ -107,6 +111,7 @@ def build_substrate(cfg: dict, regime: str, seed: int) -> Substrate:
         direction = cfg["fault_labeling"]["direction"][ch]
         inst = _sigmoid(-z_noisy) if direction == "low" else _sigmoid(z_noisy)  # no filtering
         inst_chan.append(inst)
+    s_belief_channels = np.vstack(pf_chan).T   # T x 3 (blur, illumination, occlusion)
     s_belief = np.max(np.vstack(pf_chan), axis=0)
     s_instant = np.max(np.vstack(inst_chan), axis=0)
     p_self_transition = float(hmms["blur"].A[sb.NOMINAL, sb.NOMINAL])
@@ -152,7 +157,7 @@ def build_substrate(cfg: dict, regime: str, seed: int) -> Substrate:
     return Substrate(T=T, s_belief=s_belief, s_instant=s_instant, c_belief=c_belief,
                      c_instant=c_instant, state=state, fault_active=fault_active,
                      L=L, acc=acc, fm=fm, kappa=kappa, deadline_s=deadline_s,
-                     p_self_transition=p_self_transition)
+                     p_self_transition=p_self_transition, s_belief_channels=s_belief_channels)
 
 
 # ---------------------------------------------------------------------------

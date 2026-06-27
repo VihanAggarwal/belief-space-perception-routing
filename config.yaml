@@ -133,6 +133,16 @@ configs:
   C4: { model: yolo11n, imgsz: 640,  half: true }
 reference_config: C1
 
+# Extended frontier (Part 1): merged into `configs` only when EXTENDED_FRONTIER=1
+# (used by src/run_extended_frontier.py). Adds intermediate model sizes / resolutions so
+# the accuracy-latency frontier is a dense Pareto curve, not 4 scattered points.
+configs_extended:
+  C5: { model: yolo11x, imgsz: 960, half: true }
+  C6: { model: yolo11m, imgsz: 1280, half: true }
+  C7: { model: yolo11m, imgsz: 640,  half: true }
+  C8: { model: yolo11s, imgsz: 960,  half: true }
+  C9: { model: yolo11s, imgsz: 640,  half: true }
+
 profiling:
   # Local correctness runs profile on a subset (dev-only, not reportable). Colab
   # profiles the full set. Set n_frames: 0 to use all extracted frames.

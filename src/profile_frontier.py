@@ -110,6 +110,12 @@ def main() -> int:
     conf = float(pcfg["conf_threshold"])
     iou = float(pcfg["iou_threshold"])
 
+    # config set is dynamic (supports the extended frontier via configs_extended)
+    global CONFIG_KEYS
+    CONFIG_KEYS = list(cfg["configs"].keys())
+    ref = cfg.get("reference_config", CONFIG_KEYS[0])
+    print(f"Profiling configs: {CONFIG_KEYS} (reference={ref})")
+
     out = abspath(cfg["paths"]["outputs_dir"]) / "phase3"
     out.mkdir(parents=True, exist_ok=True)
 
@@ -133,9 +139,9 @@ def main() -> int:
     n_lat = min(n_lat, n_frames)
     lat_frames = frames[:n_lat]
 
-    # --- reference pass (C1 = pseudo-GT) ---
-    print("Reference pass C1 (pseudo-GT)...")
-    c1 = build_detector(cfg, "C1", device).load()
+    # --- reference pass (the reference config = pseudo-GT) ---
+    print(f"Reference pass {ref} (pseudo-GT)...")
+    c1 = build_detector(cfg, ref, device).load()
     ref_dets, c1_fb = _run_config_over_frames(c1, frames, conf)
     lat_c1_nom = _latency_dist(c1, lat_frames, cfg, device, contended=False)
     lat_c1_con = _latency_dist(c1, lat_frames, cfg, device, contended=True)
@@ -145,12 +151,12 @@ def main() -> int:
 
     rows = []                 # frontier table rows
     per_frame_acc = []        # for routing sim: frame_idx, config, fault_type, f1
-    lat_dists = {"C1": {"nominal": lat_c1_nom, "contended": lat_c1_con}}
-    fallbacks = {"C1": c1_fb}
+    lat_dists = {ref: {"nominal": lat_c1_nom, "contended": lat_c1_con}}
+    fallbacks = {ref: c1_fb}
 
     for key in CONFIG_KEYS:
         print(f"Config {key}...")
-        if key == "C1":
+        if key == ref:
             dets = ref_dets
             ln, lc = lat_c1_nom, lat_c1_con
             fb = c1_fb
@@ -224,9 +230,11 @@ def main() -> int:
 
 
 def _check_ordering(frontier: pd.DataFrame) -> bool:
-    """Cheaper configs should be faster (lower latency). C4 fastest, C1 slowest."""
+    """Sensible if the reference (most expensive) config is the slowest and there is real
+    latency spread across the set. Works for any config-set size."""
     lat = frontier.set_index("config")["lat_median_nom_ms"]
-    return bool(lat["C4"] <= lat["C3"] and lat["C4"] <= lat["C2"] and lat["C1"] >= lat["C2"])
+    ref = frontier.iloc[0]["config"]  # reference is profiled first (row 0)
+    return bool(lat[ref] >= lat.max() - 1e-6 and lat.max() > 1.2 * lat.min())
 
 
 def _update_config_deadline(value_ms: float):
