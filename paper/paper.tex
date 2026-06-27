@@ -12,8 +12,6 @@
 \usepackage{multirow}
 \usepackage{url}
 \usepackage{microtype}
-\usepackage{tikz}
-\usetikzlibrary{calc,positioning,arrows.meta}
 
 \graphicspath{{figures/}}
 
@@ -41,550 +39,200 @@ Compute Contention under Inference Deadlines}
 
 \maketitle
 
-% ---------------------------------------------------------------
 \begin{abstract}
-Mobile-robot perception has to satisfy two constraints at once: the
-sensor stream must remain usable, and inference must finish before a
-deadline. These constraints are usually studied separately. In the
-field, they can fail together: the same rain, mud, fog, or rough
-terrain that degrades the image stream can also coincide with higher
-compute load. A router that ignores that link may choose an expensive
-model exactly when there is least time to run it.
-We model both quantities as latent state. A switching hidden Markov
-model estimates per-channel sensor fault, a two-state HMM estimates
-compute contention, and a single coupling term lets sensor-fault
+Mobile robots must keep perception both accurate and timely. These
+requirements fail in ways that are often studied separately: the
+sensor stream degrades, or inference misses its deadline. In off-road
+and adverse-weather operation the failures can be related, since the
+same event that corrupts a camera stream may also coincide with
+increased compute load. We study a deadline-aware perception router
+that estimates both quantities as latent state. A switching HMM
+tracks per-channel sensor fault, a two-state HMM tracks compute
+contention, and a single noisy-OR coupling term lets sensor-fault
 belief anticipate contention before the latency trace fully moves.
-At each frame, the router chooses the most accurate feasible
-inference configuration.
-We evaluate on three real datasets and two camera geometries:
-TartanDrive off-road driving, RADIATE rain/snow/fog/night, and
-WoodScape fisheye soiling, with five seeds and 95\% confidence
-intervals. Under the imposed coupled regimes, the coupled router
-reduces deadline misses by $1.1$ to $9.4$ percentage points,
-significant in five of six fault-bearing conditions. Fog is the
-largest case: faults are rare, but severe enough to make the
-reference model miss its deadline. In every matched independent
-control the gain is exactly zero, and on a fault-free trajectory the
-router makes no change. A hard threshold on sensor belief performs
-about as well as the noisy-OR policy, which places the contribution
-in the coupling signal rather than its functional form. Experiments
-ran on an Apple~M5; since the deadline is calibrated per device, we
-report relative deadline-miss changes rather than absolute latency.
-Code, configurations, processed outputs, and data-acquisition
-instructions are released.%
-\footnote{Repository: \url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
+Under imposed coupled regimes, the coupled router reduces deadline
+misses by $1.1$ to $9.4$ percentage points across TartanDrive,
+RADIATE, and WoodScape, significant in five of six fault-bearing
+conditions. The gain is exactly zero in every matched uncoupled
+control and zero on a fault-free trajectory. The condition-level
+pattern is more consistent with deadline-binding degradation severity
+than with fault frequency alone. Experiments ran on Apple~M5/MPS, so
+we report relative miss-rate changes, not absolute latencies. Code,
+configurations, processed outputs, and data-acquisition instructions
+are released.\footnote{Repository:
+\url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
 \end{abstract}
 
 \begin{IEEEkeywords}
 adaptive inference, sensor fault belief, compute contention,
-perception routing, deadline-constrained inference, off-road
-autonomy, RADIATE, TartanDrive, WoodScape soiling, fisheye,
-hidden Markov model
+deadline-constrained inference, perception routing, hidden Markov
+model, off-road autonomy, RADIATE, TartanDrive, WoodScape
 \end{IEEEkeywords}
 
-% ---------------------------------------------------------------
 \section{Introduction}
 \label{sec:intro}
 
-Robots operating outside clean laboratory conditions have to solve
-two timing problems at once. They need a sensor stream that still
-describes the scene, and they need perception results before the
-planner or controller stops waiting. Either side can fail. A camera
-can be splashed with mud, washed out at dusk, or buried in fog; an
-IMU can saturate on impact; lidar returns can thin out in rain. At
-the same time, the processor is shared by perception, planning, and
-control, so a load spike in one thread reduces the time left for a
-detection pass.
+Robots operating outside clean laboratory conditions need a sensor
+stream that still describes the scene and perception results that
+arrive before the planner stops waiting. Either side can fail. A
+camera can be occluded by mud or rain, washed out at dusk, or buried
+in fog; at the same time, perception, planning, and control share the
+processor. A load spike therefore shortens the time left for an
+inference call.
 
-Those two failures are not always independent. The rough segment
-that dirties a lens may also increase control load; a rainy frame
-can be both visually degraded and harder to process. A router that
-scores sensor health and compute load in isolation can therefore
-make the wrong choice: it may choose a heavy model when the machine
-is already about to miss its deadline, or it may keep trusting a
-bad camera because the fault estimate has not yet crossed a hard
-threshold.
+These two failures are not always independent. Rough terrain can
+dirty a lens and increase control load; rain can both degrade the
+image and increase visual clutter. A router that scores sensor health
+and compute load separately can choose a heavy model when the system
+is already close to missing its deadline, or continue trusting a bad
+camera because the fault estimate has not yet crossed a threshold.
 
-Existing work usually addresses one side of the problem. Fault-aware
-fusion down-weights degraded sensing channels
-\cite{antonante2022monitoring, tian2025fault}, while adaptive
-inference chooses cheaper execution paths under tight budgets
-\cite{laskaridis2021adaptive, teerapittayanon2016branchynet}. The
-missing case is the coupled one: a router that treats sensor fault
-and compute contention as related latent states and uses that
-relationship when it chooses an inference configuration.
+Prior work usually addresses one side of the problem. Fault-aware
+fusion down-weights degraded sensors
+\cite{antonante2022monitoring,tian2025fault}, while adaptive
+inference chooses cheaper networks or early exits under tight
+budgets \cite{teerapittayanon2016branchynet,laskaridis2021adaptive}.
+The case we study is the coupled one: a router that uses
+sensor-fault belief as evidence about future compute contention.
 
-This paper makes four contributions. First, we estimate
-per-channel sensor-fault state with switching HMMs and compute
-state with a two-state HMM, using observable signals rather than
-task labels. Second, we add a noisy-OR decision rule with one
-coupling coefficient, fit on held-out calibration data. Third, we
-evaluate on three real datasets and two camera geometries:
-TartanDrive off-road driving, RADIATE adverse weather, and
-WoodScape fisheye soiling. The evaluation uses five seeds,
-confidence intervals, matched uncoupled controls, and a fault-free
-negative control. Fourth, we release a config-driven pipeline for
-data loading, belief estimation, routing, and statistical analysis.
-
-The main result is shown in Fig.~\ref{fig:summary}. When sensor
-fault and compute contention are coupled, modeling the link reduces
-deadline misses. The size of the reduction appears to follow how much the
-degradation stresses the deadline, not simply how often faults
-occur. Fog is the clearest example: only $1.9\%$ of frames are
-faulted, but those episodes are severe enough that coupling saves
-more than nine points. Rain faults nearly half the frames and saves
-about one point. The controls are equally important. When we break
-the correlation, the gain drops to exactly zero in every matched
-control, and the full fault-free TartanDrive trajectory stays at
-zero. We do not claim that all field robots naturally exhibit this
-coupling; we show that, when the coupling is present, exploiting it
-changes deadline behavior. We also find that temporal smoothing is
-not universally helpful: it helps slow degradations such as fog and
-night, but hurts the fast flicker of rain droplets.
+This paper makes four contributions. First, we estimate sensor-fault
+belief and compute-contention belief from observable streams without
+task labels. Second, we evaluate a coupled noisy-OR routing rule
+against a decoupled policy that sees the same beliefs but does not
+form the cross-prediction. Third, we test across three datasets and
+two camera geometries: TartanDrive off-road driving, RADIATE adverse
+weather, and WoodScape fisheye soiling. Fourth, we report matched
+uncoupled controls, a fault-free negative control, utility and
+threshold baselines, and a learned-router audit. The main limitation
+is also explicit: the visual faults come from real data, but their
+relationship to compute contention is experimentally constructed.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig_rqh_summary.png}
-  \caption{Headline result (RQ-H). Reduction in deadline-miss rate
-  of the coupled policy over the decoupled baseline, by condition,
-  with 95\% CIs over five seeds. Filled circles: coupled regime,
-  CI excludes zero. Square: coupled but not significant (snow).
-  Grey crosses: the matched uncoupled control, exactly $0.0$\,pp in
-  every case. TartanDrive appears twice: the full trajectory (no
-  natural faults) is a clean negative control at $0.0$\,pp, while
-  its high-degradation off-road segment is a significant $+3.0$\,pp.
-  The condition-level pattern is more consistent with
-  deadline-binding degradation severity than with fault frequency
-  alone.}
+  \caption{RQ-H headline result. Deadline-miss reduction of the
+  coupled policy over the decoupled baseline. Filled circles:
+  coupled regime, CI excludes zero. Square: CI includes zero. Grey
+  crosses: matched uncoupled controls, all exactly $0.0$\,pp. The
+  condition-level pattern is more consistent with deadline-binding
+  degradation severity than with fault frequency alone.}
   \label{fig:summary}
 \end{figure}
 
-% ---------------------------------------------------------------
 \section{Related Work}
 \label{sec:related}
 
-\subsection{Off-Road and Adverse-Weather Datasets}
+TartanDrive \cite{triest2022tartandrive} and TartanDrive~2.0
+\cite{sivaprakasam2024tartandrive2} provide off-road driving data
+over rough terrain. RADIATE \cite{sheeny2021radiate} provides rain,
+snow, fog, and night sequences from a vehicle with stereo cameras.
+WoodScape \cite{yogamani2019woodscape} contributes fisheye
+automotive imagery with soiling annotations, allowing a cross-optics
+test.
 
-TartanDrive \cite{triest2022tartandrive} is a multi-modal
-off-road driving dataset collected with a modified Yamaha Viking
-ATV over grass, rocks, mud, and other rough terrain. It includes
-seven sensing modalities and roughly 200{,}000 driving interactions.
-TartanDrive~2.0 \cite{sivaprakasam2024tartandrive2} adds LiDAR and
-self-supervised learning infrastructure. RADIATE
-\cite{sheeny2021radiate} contains rain, snow, fog, and night
-driving from a Heriot-Watt vehicle platform with stereo ZED
-cameras, which makes it a useful source of real weather-driven
-sensor degradation. WoodScape \cite{yogamani2019woodscape}
-contains fisheye automotive imagery with soiling annotations, giving
-us a cross-optics test case with real lens-contamination labels.
+Fault monitoring and anomaly detection have been studied for
+autonomous perception pipelines
+\cite{antonante2022monitoring,bogdoll2022anomaly,hou2023fault}.
+Stress tests of multi-sensor fusion systems show large accuracy
+drops under individual-stream corruption \cite{tian2025fault}, and
+RoboDrive benchmarks robustness under sensor malfunctions and
+weather \cite{robodrive2024}. Adaptive inference work, including
+BranchyNet \cite{teerapittayanon2016branchynet}, edge early-exit
+surveys \cite{laskaridis2021adaptive}, and dynamic transformers
+\cite{wang2021notallimages}, adapts computation but does not model
+sensor fault as evidence about contention. PRAM-R \cite{pramr2025},
+AdaFusion-style expert selection \cite{mees2016choosing}, and DynMM
+\cite{dynmm} are closer in spirit because they route using
+reliability or uncertainty, but they do not estimate compute
+contention or test fault-contention coupling.
 
-\subsection{Sensor Fault Detection and Fault-Tolerant Fusion}
-
-Probabilistic fault monitoring \cite{antonante2022monitoring}
-covers deterministic, probabilistic, and learning-based fault
-identification in perception pipelines. Anomaly-detection surveys
-\cite{bogdoll2022anomaly} review out-of-distribution methods that
-can be applied to sensor-level failure. Hou et al.\
-\cite{hou2023fault} use information fusion for autonomous-driving
-perception fault diagnosis. Stress tests of multi-sensor fusion
-systems \cite{tian2025fault} report large accuracy drops under
-single-stream corruption in production-grade stacks. The RoboDrive
-Challenge \cite{robodrive2024} benchmarks perception under sensor
-malfunctions, adverse weather, and BEV detection tasks. We use this
-line of work differently: the fault signal is a continuous,
-temporally filtered belief, and it is allowed to affect the compute
-state used by the router.
-
-\subsection{Compute-Aware and Adaptive Inference}
-
-BranchyNet \cite{teerapittayanon2016branchynet} introduced
-multi-exit inference, where a network can terminate at intermediate
-layers. Laskaridis et al.\ \cite{laskaridis2021adaptive} survey
-early-exit design issues for edge deployment. Wang et al.\
-\cite{wang2021notallimages} extend adaptive inference to
-token-level dynamic transformers. In autonomous-driving settings,
-AD-EE \cite{adee2025} and Nav-EE \cite{navee2025} use early exits
-for vision-language perception and navigation models, while
-Temporal Patience \cite{temporalpatience2023} studies adaptive exit
-for embedded radar. These methods adapt computation, but they do
-not model runtime contention as a latent state tied to sensor
-health.
-
-\subsection{Coupled Fault and Resource Modeling}
-
-PRAM-R \cite{pramr2025} is the closest concurrent work: it routes
-modalities with an LLM-guided reliability mechanism, but it does not
-estimate compute contention or couple that state to fault belief.
-The adaptive fusion method of Mees et al.\ \cite{mees2016choosing}
-and DynMM \cite{dynmm} learn modality gating from expert weights or
-uncertainty cues, while assuming the sensors are available and
-leaving compute contention outside the model. Our focus is narrower
-and more timing-specific: couple a smoothed sensor-fault belief to a
-compute-contention belief and measure whether that coupling reduces
-deadline misses.
-
-% ---------------------------------------------------------------
 \section{Method}
 \label{sec:method}
 
-\begin{figure*}[t]
-  \centering
-  \resizebox{\textwidth}{!}{%
-  \begin{tikzpicture}[
-    font=\footnotesize,
-    >={Stealth[length=1.8mm]},
-    node distance=6mm and 9mm,
-    io/.style={draw=black, rectangle, align=center, minimum height=9mm,
-               text width=15mm, inner sep=2pt, fill=black!3},
-    blk/.style={draw=black, rectangle, rounded corners=1.5pt, align=center,
-                minimum height=9mm, text width=18mm, inner sep=2pt},
-    acc/.style={draw=black, rectangle, rounded corners=1.5pt, align=center,
-                minimum height=9mm, text width=19mm, inner sep=2pt, fill=black!8},
-    lbl/.style={font=\scriptsize, inner sep=1pt}
-  ]
-    \node[io] (frame) {Camera frame};
-    \node[blk, right=of frame] (health) {Per-channel health\\ blur / illum. / occl.};
-    \node[blk, right=of health] (shmm) {Sensor-fault\\ switching HMM};
-    \node[blk, below=10mm of shmm] (chmm) {Compute\\ 2-state HMM};
-    \node[io] (lat) at (frame |- chmm) {Latency stream};
-    \node[acc] (couple) at ($(shmm)!0.5!(chmm)+(2.5cm,0)$)
-      {Noisy-OR\\ coupling ($\kappa$)};
-    \node[blk, right=14mm of couple, text width=20mm] (router)
-      {Router: feasible set, max accuracy};
-    \node[blk, above=7mm of router, text width=20mm] (frontier)
-      {Frontier C1--C4 (acc.\ vs lat.)};
-    \node[io, right=of router] (out) {Config decision};
+We define four inference configurations ordered by accuracy-latency
+tradeoff: YOLO11x at image sizes 1280 and 640, and YOLO11n at image
+sizes 1280 and 640. Accuracy is IoU-matched per-class detection F1
+against the strongest configuration on the same frame. This is
+agreement with a reference detector rather than external ground
+truth, so systematic reference errors remain a limitation. The
+deadline is the median nominal latency of the strongest
+configuration. Under contention, that reference configuration becomes
+infeasible while cheaper configurations remain feasible.
 
-    \draw[->] (frame) -- (health);
-    \draw[->] (health) -- (shmm);
-    \draw[->] (lat) -- (chmm);
-    \draw[->] (shmm.east) -- (couple.west) node[lbl,midway,above]{$b_f$};
-    \draw[->] (chmm.east) -- (couple.west) node[lbl,midway,below]{$b_c$};
-    \draw[->] (couple) -- (router) node[lbl,midway,above]{$p_{\mathrm{cont}}$};
-    \draw[->] (frontier) -- (router);
-    \draw[->] (router) -- (out);
-  \end{tikzpicture}}
-  \caption{System overview. Per-channel image health signals feed a
-  switching HMM that yields the sensor-fault belief $b_f$; recent latencies
-  feed a two-state HMM that yields the compute-contention belief $b_c$. The
-  noisy-OR coupling (Eq.~\eqref{eq:noisyor}, coefficient $\kappa$) fuses them
-  into a contention probability $p_{\mathrm{cont}}$, on which the router
-  selects the most accurate config that remains feasible under the predicted
-  compute state. The decoupled baseline differs only by setting
-  $p_{\mathrm{cont}}=b_c$ (no $b_f$ term).}
-  \label{fig:overview}
-\end{figure*}
-
-\subsection{Inference Config Frontier}
-
-We define a discrete set of four inference configurations ordered
-by accuracy--latency tradeoff:
-
-\begin{itemize}
-  \item \textbf{C1}: YOLO11x @ imgsz 1280 (highest accuracy,
-    reference and pseudo-GT)
-  \item \textbf{C2}: YOLO11x @ imgsz 640
-  \item \textbf{C3}: YOLO11n @ imgsz 1280
-  \item \textbf{C4}: YOLO11n @ imgsz 640
-\end{itemize}
-
-A precision axis (fp16) exists for CUDA, but the Metal (MPS) device
-used here runs fp32, so precision is not a reported axis. We measure
-task accuracy as IoU-matched, per-class detection-agreement F1 with
-C1 on the same frame. This is agreement with a reference detector,
-not external ground truth, and systematic C1 errors remain a
-limitation. The deadline is the median end-to-end latency of C1
-under nominal compute. With that rule, C1 is borderline feasible
-without contention and infeasible under contention, while cheaper
-configs remain feasible. The deadline is therefore calibrated by the
-device instead of hand-tuned for a desired miss rate.
-
-\subsection{Sensor Fault Belief}
-
-We model per-channel fault state with a 4-state switching HMM:
-latent states $z \in \{\text{nominal}, \text{degrading},
-\text{faulted}, \text{recovering}\}$, Gaussian emissions per state,
-and a transition matrix fit from labeled fault segments. The
-observable health signal $h_k^t$ per channel $k$ is computed from
-the raw frame:
-
-\begin{itemize}
-  \item \textbf{Blur}: variance of the Laplacian of the image
-    (polar-unwrapped before the Laplacian for the fisheye track, so
-    radial distortion is not read as blur).
-  \item \textbf{Illumination}: grayscale histogram entropy.
-  \item \textbf{Occlusion}: sparse optical-flow feature-track
-    survival rate, or, on the fisheye soiling track where optical
-    flow on the raw fisheye is invalid, the \emph{real
-    soiling-mask} pixel fraction (mask-based ground truth).
-\end{itemize}
-
-Each signal is robust-$z$ normalized against an EMA-smoothed
-baseline, thresholded, and smoothed with minimum-duration and
-asymmetric recovery hysteresis. These filtered signals provide
-per-channel fault labels for fitting the HMM. Forward filtering
-then gives the posterior belief
-$b_{f,k}^t = P(z_k^t = \text{faulted} \mid o_{1:t})$, and the
-aggregate sensor fault belief is $b_f^t = \max_k\, b_{f,k}^t$.
-Fig.~\ref{fig:belief} shows the occlusion belief tracking real
-degradation on a RADIATE rain sequence.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_belief_occlusion.png}
-  \caption{Occlusion fault belief on real RADIATE rain. The raw
-  health signal (track-survival) is noisy; the switching-HMM
-  posterior $P(\text{faulted})$ recovers sustained degradation
-  episodes. Balanced accuracy up to $0.95$ on real occlusion.}
-  \label{fig:belief}
-\end{figure}
-
-\subsection{Compute Contention Belief}
-
-Compute state is modeled with a 2-state HMM
-$z_c \in \{\text{nominal}, \text{contended}\}$ with Gaussian
-emissions over the feature vector
-$[\text{p95},\, \text{p99},\, \text{queue depth}]^\top$ of recent
-latencies. During evaluation we induce contention with
-device-appropriate load: CUDA kernel threads on NVIDIA GPUs, CPU
-stress on CPU-only devices, and, on Apple silicon, a separate
-\emph{competitor process}. Metal command buffers are not thread-safe,
-so the co-running GPU workload cannot share the inference thread.
-The induced load produces a
-$\approx\!2.5\times$ p95 latency shift between nominal and
-contended states (Fig.~\ref{fig:contention}). Forward filtering
-gives $b_c^t = P(z_c^t = \text{contended} \mid \ell_{1:t})$.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_contention.png}
-  \caption{Per-frame latency under nominal vs.\ contended compute
-  (RADIATE rain). The induced contention shifts the p95 latency by
-  $\approx\!2.5\times$, pushing the reference config C1 past the
-  self-calibrated deadline while cheaper configs remain feasible.}
-  \label{fig:contention}
-\end{figure}
-
-\subsection{Coupled Policy and Coupling}
-
-Fig.~\ref{fig:overview} summarizes the architecture. The method
-estimates two marginal beliefs, $b_f^t$ and $b_c^t$, and couples
-them only at decision time through the noisy-OR term below. It does
-not estimate the full posterior
-$P(z_f^t, z_c^t \mid o_{1:t})$. A factorial or cross-coupled HMM
-would be the natural full-posterior version
-(\S\ref{sec:discussion}); we use the lighter form because it keeps
-the experiment centered on one coefficient, $\kappa$. Both the
-coupled policy and the decoupled baseline choose the highest
-expected-accuracy config among those feasible under the predicted
-compute state. A config is feasible in state $s$ if its median
-latency in $s$ meets the deadline. The policies differ only in how
-they form the contention probability $p_{\text{cont}}^t$:
-
-\textbf{Decoupled}: $p_{\text{cont}}^t = b_c^t$ (compute belief
-alone).
-
-\textbf{Coupled} (noisy-OR):
+For each sensor channel $k$, a four-state switching HMM tracks
+$z_k \in \{\text{nominal},\text{degrading},\text{faulted},
+\text{recovering}\}$. Emissions are computed from blur, illumination,
+and occlusion health signals. For fisheye soiling, occlusion uses
+the real soiling-mask pixel fraction rather than optical flow. The
+fault belief is
 \begin{equation}
-  p_{\text{cont}}^t = 1 - (1 - b_c^t)\,(1 - \kappa\, b_f^t)
+  b_f^t = \max_k P(z_k^t=\text{faulted}\mid o_{1:t}).
+\end{equation}
+Compute contention is a two-state HMM over recent latency features
+(p95, p99, and queue depth), producing
+$b_c^t=P(z_c^t=\text{contended}\mid \ell_{1:t})$.
+
+The decoupled policy uses $p_{\mathrm{cont}}^t=b_c^t$. The coupled
+policy uses
+\begin{equation}
+  p_{\mathrm{cont}}^t =
+  1-(1-b_c^t)(1-\kappa b_f^t),
   \label{eq:noisyor}
 \end{equation}
-where $\kappa \in [0,1]$ is the coupling coefficient fit on a
-held-out calibration draw from the same trace (never the test
-window, to prevent leakage; fitted $\kappa \approx 0.80$ across
-tracks). This models the empirical observation that sensor-fault
-onset correlates with compute-contention onset in coupled regimes
-($r = 0.31$--$0.76$) but not in uncoupled periodic schedules
-($r \approx -0.12$--$0.01$).
+where $\kappa\in[0,1]$ is fit on a held-out calibration draw from
+the same trace, never on the test window. Both policies choose the
+highest expected-accuracy configuration whose median latency is
+feasible under the predicted compute state. They differ only in the
+cross-prediction from sensor fault to contention.
 
-The decoupled baseline uses both sensor and compute signals (the
-sensor belief still drives accuracy weighting); it simply never
-forms the cross-prediction. The entire RQ-H delta is therefore
-attributable to the coupling term in Eq.~\eqref{eq:noisyor} alone,
-making it a fair baseline. Abstention (withholding a detection when
-belief confidence is low) is excluded from the headline comparison
-so different abstention rates cannot confound deadline-miss; we
-evaluate abstention separately against an oracle.
-
-\subsection{Evaluation Policies}
-
-\begin{itemize}
-  \item \textbf{CoupledPolicy}: noisy-OR coupling
-    (Eq.~\eqref{eq:noisyor}), $\kappa$ fit on calibration draw.
-  \item \textbf{DecoupledPolicy}: compute belief only, same
-    feasibility set.
-  \item \textbf{ThresholdPolicy}: rule-based coupling
-    $p_{\text{cont}}=\max(b_c,\mathbf{1}[b_f>0.5])$.
-  \item \textbf{MemorylessPolicy}: per-frame threshold on raw
-    signals, no HMM, no coupling.
-  \item \textbf{Hysteresis (model-derived)}: dwell time set from
-    the HMM's expected false-transition rate.
-  \item \textbf{Hysteresis (fixed)}: hand-tuned dwell time.
-  \item \textbf{Oracle}: routes with ground-truth fault and
-    compute state.
-\end{itemize}
-
-% ---------------------------------------------------------------
 \section{Experimental Setup}
 \label{sec:experiments}
 
-\subsection{Dataset Tracks}
+We evaluate on four groups of traces. Track A is the full
+TartanDrive \texttt{turnpike\_afternoon\_fall} sequence
+(1{,}198 frames) plus a contiguous 309-frame rough-terrain segment.
+The full sequence is a fault-free negative control; the segment has
+30.4\% faulted frames. Track B overlays controlled corruptions on
+TartanDrive frames and is used only to validate belief-tracker
+timing. Track C is WoodScape soiling, with 3{,}303 fisheye frames
+after burst collection and 8.1\% faulted frames. Track D uses
+RADIATE rain, snow, fog, and night, with 2{,}589--2{,}659 frames per
+sequence and fault fractions from 1.9\% (fog) to 44.4\% (rain).
 
-\textbf{Track A: TartanDrive (real off-road).} We use the full
-\texttt{turnpike\_afternoon\_fall} trajectory: 1{,}198 camera
-frames from \texttt{/multisense/left/image\_rect\_color} (bgr8,
-$1024\times544$) in the public CMU AirLab Swift store. It appears
-in two analyses. (i) \emph{Full trajectory (negative control).}
-The daytime, good-visibility sequence has no frames crossing the
-per-channel fault threshold (fault fraction $0.0\%$), so there is
-nothing for sensor-compute coupling to exploit. (ii)
-\emph{High-degradation segment.} A contiguous $309$-frame
-rough-terrain segment, the opening ${\approx}31$\,s, contains real
-camera degradation from bumps and occlusion spikes: fault fraction
-$30.4\%$, $r=0.74$. The full trajectory and the segment are reported
-separately; the segment is one contiguous window. Contention p95
-latency shift is $2.50\times$ on the full trajectory and
-$1.71\times$ on the segment.
+Contention is induced by device-appropriate background load. On
+Apple silicon, this is a separate competitor process because Metal
+command buffers cannot safely share the inference thread. The
+induced p95 latency shift is $1.71\times$ to $2.59\times$ depending
+on the trace. The coupled regime schedules contention to depend on
+fault onset; the uncoupled regime uses a periodic schedule
+independent of faults. Thus the causal claim is limited to the
+imposed regimes: when contention is made to depend on fault onset,
+using fault belief helps anticipate contention.
 
-\textbf{Track B: Controlled Injection (validation).}
-We overlay Gaussian-PSF blur, gamma/exposure crush, and
-alpha-composited occluders on real TartanDrive frames with known
-onset and duration. Track B is used only to validate belief-tracker
-accuracy against a ground-truth fault timeline and to run the
-controlled RQ-A2 arrival experiment; no headline number depends on
-it.
+All experiments run on an Apple~M5 with the Metal backend in fp32.
+Absolute latencies are development-environment measurements and are
+not the headline result. Each comparison uses five seeds, paired
+95\% confidence intervals, and identical frames across seeds; seed
+variance comes from injected sensor-measurement noise.
 
-\textbf{Track C: WoodScape Soiling (fisheye; cross-optics
-generalization).} We use the full 4{,}000-image soiling
-\emph{train} split, which yields 3{,}303 frames after burst
-collection. Fisheye frames are undistorted to a centered
-rectilinear projection with Valeo's vendored radial camera model
-before YOLO inference. The occlusion channel uses real soiling-mask
-ground truth, measured as soiled-pixel fraction per frame, rather
-than an optical-flow proxy; blur is computed after polar unwrap.
-Fault fraction is $8.1\%$, the deadline is $341$\,ms, contention
-p95 shift is $2.50\times$, and coupled $r=0.56$.
+\section{Results}
+\label{sec:results}
 
-\textbf{Track D: RADIATE adverse weather (real; primary).}
-We use \texttt{rain\_4\_0}, \texttt{snow\_1\_0},
-\texttt{fog\_6\_0}, and \texttt{night\_1\_0}, each with
-$2{,}589$--$2{,}659$ frames from the left ZED camera rectified to
-\texttt{camera\_left\_rect}. RADIATE is registration-gated
-(academic email, CC BY-NC-SA). Fault fraction and coupling strength
-vary by weather: rain $44.4\%$ ($r=0.76$), night $12.7\%$
-($r=0.68$), snow $18.5\%$ ($r=0.69$), and fog $1.9\%$ ($r=0.31$).
-That spread separates frequency from severity in the results.
-Contention p95 shifts are $2.54$--$2.59\times$. Faults are mostly
-occlusion for rain and snow, and illumination for fog and night.
-The contention schedule has a \emph{coupled} regime, where
-contention follows fault onset, and an \emph{uncoupled} periodic
-control independent of faults (Fig.~\ref{fig:regimes}).
+Table~\ref{tab:rqh} and Fig.~\ref{fig:summary} show the main
+deadline-miss result. The coupled policy lowers miss rate in every
+fault-bearing condition, significantly in five of six. The full
+fault-free TartanDrive trajectory has $0.0$\,pp gain, and every
+matched uncoupled control is exactly $0.0$\,pp. Fog has the lowest
+fault fraction and weakest measured coupling, but the largest
+benefit, because its rare episodes are severe enough to make the
+reference configuration miss the deadline. Rain faults almost half
+the frames but yields only a $+1.13$\,pp reduction.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_regimes.png}
-  \caption{Coupling regimes (RADIATE rain). In the coupled regime
-  compute contention follows detected sensor-fault onset; in the
-  uncoupled control it follows a fixed periodic schedule
-  independent of faults. The uncoupled regime is the falsification
-  test for the coupling claim.}
-  \label{fig:regimes}
-\end{figure}
-
-\subsection{Implementation Details}
-
-All experiments run on an Apple~M5 (10-core, 16\,GB unified memory)
-using the Metal (MPS) backend in fp32; the precision axis is
-CUDA-only and is not reported. Absolute latencies are specific to
-this development environment, so they are not headline results. The
-deadline self-calibrates per device as median nominal C1 latency
-($211$--$341$\,ms here), which makes the RQ-H comparison relative to
-the local frontier. Configuration is driven by
-\texttt{config.yaml}; no latency-dependent threshold is hardcoded.
-All comparisons use 5 seeds, 95\% $t$-interval CIs, and paired
-difference tests. Seed variance comes from sensor measurement noise;
-the real frames are identical across seeds.
-
-\subsection{Results}
-
-\subsubsection{Inference Config Frontier}
-
-Table~\ref{tab:frontier} reports the measured accuracy--latency
-frontier, and Fig.~\ref{fig:frontier} shows the RADIATE rain
-frontier. The ordering is consistent on every track: C1 has the
-highest agreement with the reference, and C4 is cheapest. Under
-contention, C1 exceeds the deadline while C2--C4 remain feasible,
-leaving a $0.24$--$0.45$ accuracy gap to trade against timeliness.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_frontier.png}
-  \caption{Accuracy--latency frontier (RADIATE rain). Vertical line:
-  self-calibrated deadline. Under contention the reference config
-  C1 crosses the deadline; cheaper configs stay feasible, forming
-  the routing tradeoff the policies navigate.}
-  \label{fig:frontier}
-\end{figure}
-
-\begin{table}[htbp]
-\caption{Accuracy--latency frontier (selected tracks). Accuracy =
-IoU-matched F1 vs.\ C1 (pseudo-GT). Under contention C1 misses the
-self-calibrated deadline; C2--C4 remain feasible. Latencies are
-dev-environment (Apple M5/MPS).}
-\label{tab:frontier}
-\centering
-\scriptsize
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{llcccc}
-\toprule
-\textbf{Track (deadline)} & \textbf{Cfg} & \textbf{Model} &
-\textbf{imgsz} & \textbf{Acc.} & \textbf{Con.\ feas.?} \\
-\midrule
-\multirow{4}{*}{A (211\,ms)}
- & C1 & YOLO11x & 1280 & 1.000 & no \\
- & C2 & YOLO11x & 640  & 0.746 & yes \\
- & C3 & YOLO11n & 1280 & 0.717 & yes \\
- & C4 & YOLO11n & 640  & 0.713 & yes \\
-\midrule
-\multirow{4}{*}{D rain (229\,ms)}
- & C1 & YOLO11x & 1280 & 1.000 & no \\
- & C2 & YOLO11x & 640  & 0.766 & yes \\
- & C3 & YOLO11n & 1280 & 0.752 & yes \\
- & C4 & YOLO11n & 640  & 0.733 & yes \\
-\midrule
-\multirow{4}{*}{C soil (341\,ms)}
- & C1 & YOLO11x & 1280 & 1.000 & no \\
- & C2 & YOLO11x & 640  & 0.555 & yes \\
- & C3 & YOLO11n & 1280 & 0.569 & yes \\
- & C4 & YOLO11n & 640  & 0.474 & yes \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsubsection{RQ-H: Coupled vs.\ Decoupled (Headline)}
-
-Table~\ref{tab:rqh} and Fig.~\ref{fig:summary} give the main
-result. In the coupled regime, the coupled policy lowers
-deadline-miss rate in every fault-bearing condition. The reduction
-is significant in five of six: the off-road segment, rain, fog,
-night, and soiling. Snow is positive in point estimate, but its CI
-includes zero. Track A gives both sides of the mechanism. The full
-fault-free trajectory yields $0.0$\,pp, as expected for a negative
-control. Its $309$-frame high-degradation segment yields
-$+3.0$\,pp ($[2.49,3.51]$) at near-matched accuracy ($0.877$ vs.\
-$0.880$). Every uncoupled control is also exactly $0.0$\,pp. Within
-these regimes, the benefit appears only when fault--contention
-coupling is imposed and disappears when the same signals are
-scheduled independently. Fig.~\ref{fig:centerpiece} shows the
-per-condition view for fog, the strongest case.
-
-\begin{table*}[htbp]
-\caption{RQ-H. Deadline-miss rate, coupled vs.\ decoupled, coupled
-regime. $\Delta = $ miss-rate reduction (decoupled $-$ coupled), pp,
-with 95\% CI; $^\ast$ = CI excludes zero. $r$ is the measured
-fault--contention correlation in the coupled regime; $\kappa$ is
-the fitted coupling coefficient. Every uncoupled control yields
-$0.0$\,pp.}
+\begin{table*}[t]
+\caption{RQ-H. Deadline-miss rate, coupled vs.\ decoupled. $\Delta$
+= decoupled $-$ coupled, pp, with 95\% CI. $^\ast$ = CI excludes
+zero. $r$ is measured fault-contention correlation in the imposed
+coupled regime.}
 \label{tab:rqh}
 \centering
 \scriptsize
@@ -593,132 +241,51 @@ $0.0$\,pp.}
 \toprule
 \textbf{Track} & \textbf{Condition} & \textbf{Frames} &
 \textbf{Fault \%} & \textbf{$r$} & \textbf{$\kappa$} &
-\textbf{Cpl.\ miss} & \textbf{Decoup.\ miss} &
-\textbf{$\Delta$ (pp)} & \textbf{Uncoupled $\Delta$} \\
+\textbf{Cpl.\ miss} & \textbf{Dec.\ miss} &
+\textbf{$\Delta$ (pp)} & \textbf{Uncpl.\ $\Delta$} \\
 \midrule
-A & TartanDrive (full, clean) & 1198 & 0.0  & --   & --   & --    & --    & $0.00$ & $0.00$ \\
-A & TartanDrive (off-road seg.) & 309 & 30.4 & 0.74 & 0.79 & 0.249 & 0.279 & $+3.00\ [2.49,\,3.51]^\ast$ & $0.00$ \\
-D & RADIATE rain        & 2651 & 44.4 & 0.76 & 0.80 & 0.233 & 0.244 & $+1.13\ [0.18,\,2.09]^\ast$  & $0.00$ \\
-D & RADIATE snow        & 2589 & 18.5 & 0.69 & 0.82 & 0.313 & 0.341 & $+2.80\ [-0.58,\,6.18]$      & $0.00$ \\
-D & RADIATE fog         & 2659 & 1.9  & 0.31 & 0.80 & 0.329 & 0.423 & $+9.40\ [7.07,\,11.73]^\ast$ & $0.00$ \\
-D & RADIATE night       & 2644 & 12.7 & 0.68 & 0.80 & 0.313 & 0.371 & $+5.87\ [2.87,\,8.86]^\ast$  & $0.00$ \\
-C & WoodScape soiling   & 3303 & 8.1  & 0.56 & 0.80 & 0.256 & 0.271 & $+1.56\ [1.01,\,2.11]^\ast$  & $0.00$ \\
+A & TartanDrive full & 1198 & 0.0  & --   & --   & --    & --    & $0.00$ & $0.00$ \\
+A & TartanDrive seg. & 309  & 30.4 & 0.74 & 0.79 & 0.249 & 0.279 & $+3.00\ [2.49,3.51]^\ast$ & $0.00$ \\
+D & RADIATE rain     & 2651 & 44.4 & 0.76 & 0.80 & 0.233 & 0.244 & $+1.13\ [0.18,2.09]^\ast$  & $0.00$ \\
+D & RADIATE snow     & 2589 & 18.5 & 0.69 & 0.82 & 0.313 & 0.341 & $+2.80\ [-0.58,6.18]$      & $0.00$ \\
+D & RADIATE fog      & 2659 & 1.9  & 0.31 & 0.80 & 0.329 & 0.423 & $+9.40\ [7.07,11.73]^\ast$ & $0.00$ \\
+D & RADIATE night    & 2644 & 12.7 & 0.68 & 0.80 & 0.313 & 0.371 & $+5.87\ [2.87,8.86]^\ast$  & $0.00$ \\
+C & WoodScape soil   & 3303 & 8.1  & 0.56 & 0.80 & 0.256 & 0.271 & $+1.56\ [1.01,2.11]^\ast$  & $0.00$ \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_rqh_fog.png}
-  \caption{Per-condition RQ-H centerpiece (RADIATE fog, the
-  strongest effect). Coupled vs.\ decoupled deadline-miss across five
-  seeds in the coupled regime, with the uncoupled control. The
-  coupled policy anticipates rare but severe fog episodes that make
-  the reference config infeasible under contention.}
-  \label{fig:centerpiece}
-\end{figure}
+Deadline miss rate alone can reward aggressive downshifting, so we
+also compute on-time utility,
+$U=T^{-1}\sum_t a_t\mathbf{1}[\ell_t\le D]$. No tested condition had
+a negative point estimate, although three differences were
+statistically inconclusive: snow $+1.93$\,pp
+$[-0.40,4.25]$, fog $+0.07$\,pp $[-3.65,3.79]$, and soiling
+$+0.23$\,pp $[-0.13,0.58]$. The significant utility gains are
+off-road $+2.67$\,pp, rain $+0.86$\,pp, and night $+5.87$\,pp.
 
-The effect size does not track fault frequency or correlation
-strength alone. Fog has the lowest fault fraction ($1.9\%$) and the
-weakest coupling ($r=0.31$), yet it has the largest benefit
-($+9.4$\,pp). The likely driver is severity: rare fog
-illumination/occlusion episodes make the reference config infeasible
-when contention arrives, while frequent but milder rain droplets
-change fewer routing decisions. This is the regime where routing
-matters most: degradation is severe enough to bind the deadline.
+A hard threshold baseline,
+$p_{\mathrm{cont}}=\max(b_c,\mathbf{1}[b_f>0.5])$, performs
+similarly to the noisy-OR coupled policy. The coupled-threshold gap
+stays within $\pm0.5$\,pp and all CIs include zero. This suggests
+that the main contribution is the use of sensor-fault belief for
+contention anticipation, not the exact noisy-OR form. A moving-block
+bootstrap over time also excludes zero for all six fault-bearing
+conditions, including snow, but this checks temporal resampling
+within a sequence rather than generalization across independent
+drives.
 
-The most severe condition also shows the tradeoff. On rain, night,
-and soiling, coupled and decoupled task accuracy are nearly matched
-(rain: $0.855$ vs.\ $0.857$). On fog, the coupled policy gives up
-task accuracy ($0.861$ vs.\ $0.954$) to cut misses by $9.4$\,pp,
-because it downshifts before predicted contention. We therefore
-treat deadline-miss as the primary metric: in a deadline-controlled
-pipeline, a late detection is often unusable downstream.
-
-\subsubsection{Deadline-Aware Utility}
-
-Deadline-miss rate by itself can reward aggressive downshifting, so
-we also report an on-time utility:
-$U = \frac{1}{T}\sum_{t} a_t \,\mathbf{1}[\ell_t \le D]$. A frame
-contributes its accuracy only if it meets the deadline; late frames
-score zero. Unlike $\bar{a}(1{-}m)$, this keeps the chosen config's
-accuracy tied to that frame's latency.
-Table~\ref{tab:utility} shows nonnegative point estimates for
-$\Delta U$ in all six conditions. The gains are significant for
-off-road, rain, and night. Snow, fog, and soiling are positive but
-not statistically distinguishable from zero. Fog is essentially
-break-even ($+0.07$\,pp): the deadline-miss reduction is large, but
-the accuracy cost cancels it in expected on-time accuracy.
-
-\begin{table}[htbp]
-\caption{Per-frame on-time utility
-$U=\frac{1}{T}\sum_t a_t\mathbf{1}[\ell_t\le D]$ (per-frame on-time
-utility: each frame scores its accuracy if on time, zero if late).
-$\Delta U$
-(coupled $-$ decoupled, pp) with paired 95\% CI; $^\ast$ excludes
-zero. All point estimates are nonnegative.}
-\label{tab:utility}
-\centering
-\scriptsize
-\setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Condition} & \textbf{$U$ cpl} & \textbf{$U$ dec} &
-\textbf{$\Delta U$ (pp)} & \textbf{95\% CI} \\
-\midrule
-TartanDrive off-road & 0.628 & 0.601 & $+2.67^\ast$ & $[2.16, 3.17]$ \\
-RADIATE rain   & 0.622 & 0.613 & $+0.86^\ast$ & $[0.12, 1.60]$ \\
-RADIATE snow   & 0.617 & 0.598 & $+1.93$ & $[-0.40, 4.25]$ \\
-RADIATE fog    & 0.532 & 0.532 & $+0.07$ & $[-3.65, 3.79]$ \\
-RADIATE night  & 0.685 & 0.626 & $+5.87^\ast$ & $[2.87, 8.86]$ \\
-WoodScape soiling & 0.520 & 0.518 & $+0.23$ & $[-0.13, 0.58]$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsubsection{Is the Noisy-OR Necessary? A Threshold Baseline}
-
-To test whether the noisy-OR form itself matters, we add a simple
-rule-based baseline:
-$p_{\text{cont}}^t = \max(b_c^t,\,\mathbf{1}[b_f^t > 0.5])$. This
-hard union downshifts whenever either belief is high. As shown in
-Table~\ref{tab:baseline}, the threshold rule performs similarly to
-the noisy-OR coupled policy on every condition. The
-coupled$-$threshold difference stays within $\pm0.5$\,pp and every CI
-includes zero, while both coupled methods beat the decoupled
-baseline by nearly the same amount. We do not claim formal
-equivalence; an equivalence test with a $\pm1$\,pp margin is
-under-powered at $n{=}5$. The narrower conclusion is that the soft
-noisy-OR shape is not carrying the result. Feeding sensor-fault
-belief into contention anticipation is.
-
-The threshold comparison does not remove the HMMs: both coupled
-policies still consume $b_f$ and $b_c$. RQ-A1 separately tests the
-value of temporal belief smoothing. We also train a small
-two-hidden-layer MLP ($32$--$16$ units, ReLU; cross-entropy, Adam)
-from the same five inputs used by the policies: three sensor-channel
-beliefs, compute belief, and deadline. Supervision comes from
-per-frame oracle config labels. Each track is split temporally, with
-the first $70\%$ of frames for training and the last $30\%$ held out,
-and no frame shared. On held-out frames, the MLP is competitive but
-inconsistent across the seven track-level sequence splits in
-Table~\ref{tab:mlp}: lower deadline-miss on three splits and higher
-on four. We report it as a baseline rather than a contribution.
-Across observation noise levels, the coupled$-$threshold gap remains within
-$\pm1.2$\,pp, n.s., for noise $\sigma$ up to $0.75$ on fog and rain.
-
-\begin{table}[htbp]
+\begin{table}[t]
 \caption{Learned-router audit. The MLP uses the same belief features
 as the coupled policy and is trained on temporally split oracle
-labels. $\Delta$ = MLP $-$ coupled deadline-miss rate, pp;
-$^\ast$ = paired CI excludes zero.}
+labels. $\Delta$ = MLP $-$ coupled deadline-miss rate, pp.}
 \label{tab:mlp}
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Split} & \textbf{Cpl.} & \textbf{MLP} & \textbf{$\Delta$ (pp)} \\
+\textbf{Split} & \textbf{Cpl.} & \textbf{MLP} & \textbf{$\Delta$} \\
 \midrule
 Fog      & 0.164 & 0.167 & $+0.22$ \\
 Night    & 0.427 & 0.169 & $-25.78^\ast$ \\
@@ -731,297 +298,58 @@ A-seg.   & 0.422 & 0.222 & $-20.00^\ast$ \\
 \end{tabular}
 \end{table}
 
-\begin{table}[htbp]
-\caption{Deadline-miss rate (coupled regime): a simple threshold
-rule performs similarly to the noisy-OR coupled policy.
-$\Delta$(Cpl$-$thr) is the coupled-policy advantage over the threshold rule
-(pp, 95\% CI); all include zero (no detectable difference).}
-\label{tab:baseline}
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Cond.} & \textbf{Decoup.} & \textbf{Threshold} &
-\textbf{Cpl.} & \textbf{$\Delta$(Cpl$-$thr)} \\
-\midrule
-A-seg   & 0.279 & 0.249 & 0.249 & $+0.0\ [-0.0,0.0]$ \\
-rain    & 0.244 & 0.233 & 0.233 & $+0.1\ [-0.1,0.3]$ \\
-snow    & 0.341 & 0.309 & 0.313 & $-0.5\ [-3.0,2.1]$ \\
-fog     & 0.423 & 0.333 & 0.329 & $+0.5\ [-1.6,2.5]$ \\
-night   & 0.371 & 0.317 & 0.313 & $+0.5\ [-2.8,3.7]$ \\
-soiling & 0.271 & 0.255 & 0.256 & $-0.1\ [-0.1,0.0]$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+The learned-router audit in Table~\ref{tab:mlp} is mixed: the MLP
+has lower miss rate on three splits and higher miss rate on four.
+It therefore does not replace the coupled policy as a consistent
+baseline, but it does show that the belief features carry useful
+signal.
 
-\subsubsection{Robustness: Bootstrap, Deadline, and Coupling Strength}
+Persistence-aware belief improves fault-detection balanced accuracy
+on all fault-bearing tracks and reduces configuration switching for
+slow degradations such as fog, night, and soiling. It hurts on rain,
+where droplet occlusion flickers too quickly for the HMM's
+slow-onset assumption. Model-derived hysteresis responds faster than
+fixed hysteresis under non-stationary arrivals (1.6 vs.\ 6.6 frames
+of onset-to-reconfiguration lag), but switches about 30\% more often.
 
-We run two checks beyond the primary seed CIs and the single
-operating point. First, a moving-block bootstrap over time
-(block $=50$ frames, $B=2000$), pooled across seeds, tests whether a
-small number of frames drives the result. All six conditions exclude
-zero: off-road $[0.6,4.8]$, rain $[0.3,2.3]$, snow $[1.1,4.7]$,
-fog $[6.9,12.1]$, night $[3.3,8.7]$, and soiling $[1.1,2.0]$\,pp.
-Snow, which is not significant under the conservative $n{=}5$ seed
-interval, becomes significant under temporal resampling; we still
-use the seed interval as the primary result. This check addresses
-temporal structure within a sequence, not generalization across
-independent sequences.
-
-Second, sweeping the deadline on fog (Table~\ref{tab:deadline})
-shows that the benefit depends on the operating point. It peaks when
-the deadline binds the reference config. At tighter deadlines
-($0.8$--$0.9\times$), every policy must downshift and misses vanish.
-At looser deadlines ($1.1$--$1.2\times$), misses are rare and the
-gap shrinks to $+0.7$\,pp (n.s.). The effect is therefore
-concentrated in the borderline-feasibility regime targeted by the
-median nominal C1 deadline rule. The operating-point dependence is
-real; per-condition deadline sweeps remain future work.
-
-\begin{table}[htbp]
-\caption{Deadline-strictness sweep (RADIATE fog, coupled regime).
-Multiplier scales the self-calibrated deadline. The coupled-policy advantage
-peaks where the reference config is borderline-feasible.}
-\label{tab:deadline}
-\centering
-\small
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{cccc}
-\toprule
-\textbf{Mult.} & \textbf{Deadline (ms)} & \textbf{$\Delta$ (pp)} &
-\textbf{95\% CI} \\
-\midrule
-0.8 & 174.0 & 0.00 & n/a           \\
-0.9 & 195.8 & 0.00 & n/a           \\
-1.0 & 217.5 & $+9.40$ & $[7.07, 11.73]$ \\
-1.1 & 239.3 & $+0.67$ & $[-0.11, 1.44]$ \\
-1.2 & 261.0 & $+0.67$ & $[-0.11, 1.44]$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Sweeping $\kappa$ directly on fog gives a graded response tied to
-the mechanism. The RQ-H benefit rises from $0.0$\,pp at
-$\kappa{=}0$, where the noisy-OR collapses to the decoupled
-baseline, to $+3.0$\,pp at $\kappa{=}0.5$, $+9.3$\,pp at
-$\kappa{=}0.75$, and $+10.9$\,pp at $\kappa{=}1.0$. The calibrated
-$\kappa\approx0.8$ lies in this range.
-
-Fig.~\ref{fig:phase} extends this to a two-dimensional controlled
-sweep over coupling strength and fault-onset rate. The
-$\kappa{=}0$ row is exactly $0.0$\,pp here and across all seven
-tracks. With positive coupling, the benefit appears but varies
-nonlinearly with both axes: grid maxima are $7.7$--$10.5$\,pp, and
-on fog the largest cells occur at $\kappa{=}0.2$ with high onset
-rate, not at the largest $\kappa$. Aggregated per cell, $12$--$15$
-of the $20$ grid cells show a significant positive reduction on
-each track, while every $\kappa{=}0$ cell is non-significant. The
-important reading is the falsification result: zero coupling gives
-zero benefit.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_phase_diagram.png}
-  \caption{RQ-H phase diagram (RADIATE fog): coupled$-$decoupled
-  deadline-miss reduction over a coupling-strength $\times$
-  fault-onset-rate grid of controlled regimes. The bottom row
-  ($\kappa{=}0$) is the no-coupling control and is exactly zero
-  (here and on all seven tracks); under positive coupling the
-  benefit is present but varies nonlinearly with both coupling and
-  onset rate.}
-  \label{fig:phase}
-\end{figure}
-
-Finally, we re-profile a denser nine-config Pareto frontier on fog,
-adding yolo11x@960, yolo11m@1280/640, and yolo11s@960/640. The
-coupled-regime benefit remains significant at $+6.0$\,pp
-($[5.6, 6.4]$), compared with $+9.4$\,pp on the four-config set. A
-richer frontier gives the decoupled baseline better fallback
-configs, so the smaller margin is expected.
-
-\subsubsection{RQ-A1: Persistence-Aware Belief vs.\ Memoryless}
-
-Table~\ref{tab:rqa1} compares the HMM belief detector with a
-memoryless per-frame threshold; Fig.~\ref{fig:rqa1} shows the night
-track, where belief clears the full gate. The belief detector
-improves fault-detection balanced accuracy on every fault-bearing
-track ($+3$ to $+8$ points). It significantly reduces
-config-switching in three of five conditions: fog, night, and
-soiling. It clears the pre-specified gate, lower switching at
-matched or better accuracy, on night. Rain is the exception:
-droplet occlusion flickers quickly, and HMM smoothing can turn that
-flicker into more boundary crossings than the instantaneous signal.
-Snow is under-powered, with a CI that includes zero.
-
-\begin{table}[htbp]
-\caption{RQ-A1. Config-switching rate, belief vs.\ memoryless, and
-detection balanced accuracy. $\Delta = $ memoryless $-$ belief
-(positive $=$ belief switches \emph{less}, i.e.\ better);
-$^\ast$ = CI excludes zero. ``Gate'' = passes the pre-specified
-test (lower switching at non-inferior accuracy).}
-\label{tab:rqa1}
-\centering
-\small
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{lcccccc}
-\toprule
-\textbf{Track} & \textbf{Belief} & \textbf{Mem.} &
-\textbf{$\Delta$} & \textbf{bAcc$_{\text{bel}}$} &
-\textbf{bAcc$_{\text{mem}}$} & \textbf{Gate} \\
-\midrule
-D rain   & 0.020 & 0.010 & $-0.010^\ast$ & 0.884 & 0.854 & no \\
-D snow   & 0.043 & 0.031 & $-0.012$      & 0.859 & 0.821 & no \\
-D fog    & 0.037 & 0.047 & $+0.011^\ast$ & 0.752 & 0.668 & no \\
-D night  & 0.050 & 0.074 & $+0.024^\ast$ & 0.825 & 0.794 & \textbf{yes} \\
-C soil   & 0.020 & 0.052 & $+0.031^\ast$ & 0.862 & 0.808 & no \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_rqa1_night.png}
-  \caption{RQ-A1 (RADIATE night). The persistence-aware belief
-  detector reduces config-switching relative to the memoryless
-  baseline at higher balanced accuracy, clearing the full
-  pre-specified gate on this track.}
-  \label{fig:rqa1}
-\end{figure}
-
-The result is fault-type dependent. Persistence helps slow,
-sustained degradations and hurts fast-flickering ones. A practical
-router should therefore adapt its smoothing time constant, or first
-classify the fault's temporal scale.
-
-\subsubsection{RQ-A2: Model-Derived vs.\ Fixed Dwell Time}
-
-Under non-stationary fault arrival, model-derived hysteresis is
-$\approx\!4\times$ more responsive than fixed hysteresis:
-onset-to-reconfiguration lag is $1.6$ vs.\ $6.6$ frames. It also
-switches $\approx\!30\%$ more often (switch rate $0.045$ vs.\
-$0.034$; paired difference significant). This is a tradeoff, not a
-dominance result. The right choice depends on whether
-reconfiguration lag or switching cost is the active constraint.
-Under stationary arrival, the two are statistically
-indistinguishable, so the auto-tuned dwell matches hand tuning
-without manual calibration.
-
-\subsubsection{Belief Tracker Validation (Track B)}
-
-On controlled injection with a known fault timeline, the blur and
-occlusion belief trackers recover the injected onsets at balanced
-accuracy $0.85$--$0.89$ with $3$--$6$ frame detection lag. On real
-data the occlusion channel reaches balanced accuracy up to $0.95$
-(e.g.\ RADIATE rain, Fig.~\ref{fig:belief}). On the fault-free
-Track A all channels correctly report no sustained faults (balanced
-accuracy $\approx\!0.5$, zero detected segments), consistent with
-the $0.0\%$ fault fraction and the null RQ-H result.
-
-% ---------------------------------------------------------------
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{Interpreting the Effect Size}
+The key scientific claim is narrow. The experiments establish that
+when contention is scheduled to depend on fault onset, using
+sensor-fault belief to anticipate contention improves deadline
+behavior. They do not establish that real deployed robots commonly
+exhibit this relationship. The uncoupled controls are therefore
+central: they show that the measured benefit switches off when the
+fault-contention relationship is removed.
 
-The strongest evidence is the switch-off behavior. The reduction is
-positive on every fault-bearing condition, across three datasets and
-two camera geometries, and for degradations ranging from off-road
-dust to rain, snow, fog, night, and lens soiling. It is exactly zero
-when we cut the correlation, and zero again on a trajectory with no
-faults. A confound in the belief estimator or the metric would have
-to disappear whenever only the coupling schedule changes.
+Several limitations remain. The evaluation is offline and
+trace-driven, not hardware-in-the-loop. Compute contention is
+non-thermal commodity load with a two-state model; embedded systems
+can have richer contention. Pseudo-GT is agreement with the C1
+reference detector, not external labels. The sensor HMM labels are
+derived from health signals that the belief later filters, so fault
+validation is partly internal, though Track B provides independent
+injection onsets. RADIATE radar, LiDAR, and detection annotations
+are not used. WoodScape's temporal order is burst order, not
+continuous video. Finally, the five seeds reuse the same frames, so
+the CIs measure sensitivity to sensor-measurement noise rather than
+generalization across vehicles or routes.
 
-Across conditions, the pattern points to severity rather than
-frequency. Fog has the fewest faults and the weakest measured
-correlation, yet the largest benefit, because its rare episodes are
-the ones that push the reference model past the deadline. We use
-``severity'' as an interpretation of the per-condition outcomes, not
-as an independently measured variable; a controlled severity sweep
-would be needed to isolate it. The threshold baseline in
-Table~\ref{tab:baseline} supports the same reading. A hand-set rule
-on the sensor belief performs about as well as the probabilistic
-version, so the result comes from coupling the beliefs, not from the
-noisy-OR form in particular.
-
-\subsection{When Persistence Helps and Hurts}
-
-Persistence-aware belief improves detection balanced accuracy on
-all fault-bearing tracks and reduces config switching for slow,
-sustained degradations: fog, night, and soiling. It passes the full
-pre-specified gate on night. It hurts on rain, where high-frequency
-droplet occlusion violates the slow-onset assumption in the HMM
-smoothing. The practical lesson is not to discard persistence, but
-to match the smoothing time constant to the fault's temporal scale.
-
-\subsection{Limitations}
-
-The evaluation is offline and trace-driven, with no
-hardware-in-the-loop. Compute contention is non-thermal commodity
-load represented by a two-state model; embedded contention can have
-richer structure. The sensor-to-compute coupling is imposed by the
-coupled/uncoupled regimes rather than measured from natural
-co-occurrence. That design supports the causal reading, because the
-uncoupled arm is the falsification test, but it does not prove that
-field robots exhibit the same coupling. The pseudo-GT is
-agreement-with-reference and is blind to systematic C1 errors. The
-per-channel labels used to fit the sensor HMM come from the same
-health signals that the belief later filters, so detection
-validation is partly internal; Track~B's controlled injection, with
-independent onset labels, reduces but does not eliminate that
-circularity. HMM calibration is shared across all policies, so the
-RQ-H delta is not biased by policy-specific calibration, but
-absolute belief calibration is optimistic. RADIATE uses only the
-rectified left camera; radar, LiDAR, and detection annotations are
-unused. WoodScape soiling order is 7--8 frame bursts, not
-continuous video time. Finally, the five seeds reuse the same frames
-and vary injected sensor-measurement noise, so the CIs measure
-sensitivity to that noise rather than generalization across
-sequences, vehicles, or contention traces. The temporal-block
-bootstrap checks within-sequence resampling, but cross-environment
-intervals require independent trajectories. Absolute latencies are
-specific to Apple~M5/MPS and are not headline results.
-
-\subsection{Future Work}
-
-Three directions are immediate. \emph{(i) Full joint posterior.}
-Replace the noisy-OR coupling with a factorial or cross-coupled HMM
-that maintains $P(z_f^t, z_c^t \mid o_{1:t})$, moving from coupled
-belief fusion to joint belief-state estimation. \emph{(ii) Learned
-baselines.} The decoupled ablation, threshold rule
-(Table~\ref{tab:baseline}), and small MLP router
-(\S\ref{sec:experiments}) are useful but not exhaustive. A tuned
-contextual bandit or learned router over $(b_f, b_c)$, plus an
-oracle with access to the coupling schedule, would better bound the
-value of learned fusion. \emph{(iii) Generalization and realism.}
-Contention intensity, fault--contention delay, and HMM
-window/transition parameters should be swept as we swept deadline
-and $\kappa$. The larger step is independent trajectories for
-cross-environment CIs, reportable datacenter-GPU latencies,
-embedded contention on a Jetson, measured natural co-occurrence,
-RADIATE detection annotations instead of pseudo-GT, and a closed-loop
-downstream task such as MuJoCo navigation with rendered fault
-injection.
-
-% ---------------------------------------------------------------
 \section{Conclusion}
 \label{sec:conclusion}
 
 We built a deadline-aware perception router that estimates
 sensor-fault belief and compute-contention belief with separate HMMs
-and couples them at decision time. Across three real datasets and
-two camera geometries, coupling reduced deadline misses by $1.1$ to
-$9.4$ points when contention was scheduled to depend on fault onset. The gain was
-zero in every matched uncoupled control and zero on a fault-free
-trajectory. The benefit appears to track how severely a degradation
-strains the deadline, not just how often faults occur, and a simple
-threshold on sensor belief matched the noisy-OR policy under our
-conditions. Temporal smoothing helped slow degradations but hurt
-fast-flickering rain. The coupling here is imposed by design; the
-next test is whether the same structure appears in fielded systems
-with naturally co-occurring faults and compute contention.
+and couples them at decision time. Across real off-road, adverse
+weather, and fisheye soiling data, coupling reduced deadline misses
+by $1.1$ to $9.4$ points when contention was scheduled to depend on
+fault onset. The gain was zero in matched uncoupled controls and on
+a fault-free trajectory. The result supports coupled belief-space
+routing as a useful mechanism under constructed fault-contention
+dependence, while leaving natural field co-occurrence as the next
+test.
 
-% ---------------------------------------------------------------
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
