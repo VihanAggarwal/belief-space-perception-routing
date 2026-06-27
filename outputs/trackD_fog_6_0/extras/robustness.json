@@ -175,5 +175,35 @@
       "hi_pp": 15.27817176767479,
       "significant": true
     }
+  ],
+  "noise_sweep_joint_minus_threshold": [
+    {
+      "sigma": 0.15,
+      "joint_minus_threshold_pp": -0.46666666666666634,
+      "lo_pp": -2.485829356979479,
+      "hi_pp": 1.5524960236461465,
+      "significant": false
+    },
+    {
+      "sigma": 0.3,
+      "joint_minus_threshold_pp": -1.2,
+      "lo_pp": -3.342645047154659,
+      "hi_pp": 0.9426450471546592,
+      "significant": false
+    },
+    {
+      "sigma": 0.5,
+      "joint_minus_threshold_pp": -1.2,
+      "lo_pp": -3.761428404748545,
+      "hi_pp": 1.361428404748545,
+      "significant": false
+    },
+    {
+      "sigma": 0.75,
+      "joint_minus_threshold_pp": -0.5333333333333323,
+      "lo_pp": -5.624323970342876,
+      "hi_pp": 4.557657303676212,
+      "significant": false
+    }
   ]
 }
