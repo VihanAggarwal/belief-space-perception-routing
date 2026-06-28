@@ -55,7 +55,7 @@ misses by $1.1$ to $9.4$ percentage points across TartanDrive,
 RADIATE, and WoodScape, significant in five of six fault-bearing
 conditions. The gain is exactly zero in every matched uncoupled
 control and zero on a fault-free trajectory. The condition-level
-pattern is more consistent with deadline-binding degradation severity
+pattern is more consistent with deadline-binding impact
 than with fault frequency alone. Experiments ran on Apple~M5/MPS, so
 we report relative miss-rate changes, not absolute latencies. Code,
 configurations, processed outputs and data-acquisition instructions
@@ -115,7 +115,7 @@ relationship to compute contention is experimentally constructed.
   coupled regime, CI excludes zero. Square: CI includes zero. Grey
   crosses: matched uncoupled controls, all exactly $0.0$\,pp. The
   condition-level pattern is more consistent with deadline-binding
-  degradation severity than with fault frequency alone.}
+  deadline-binding impact than with fault frequency alone.}
   \label{fig:summary}
 \end{figure}
 
@@ -304,8 +304,8 @@ router never receives this schedule. It observes only noisy
 per-frame health signals, from which the sensor HMM must infer fault
 state, and recent latency statistics, from which the compute HMM
 infers contention. The schedule and the router's fault belief share
-an origin in the same physical degradation, which is the coupling we
-set out to study, but they are not the same signal and the
+an origin in the same underlying fault-label process, which is the
+coupling we set out to study, but they are not the same signal and the
 scheduling variable is never a router input. The uncoupled control
 replaces this rule with a periodic schedule independent of faults.
 The causal claim is correspondingly narrow: when contention is made
