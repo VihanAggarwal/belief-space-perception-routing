@@ -160,13 +160,15 @@ All from `config.yaml` + the named functions; add these so reviewers do not need
 
 ## Presentation fixes (reviewer)
 
-- **[done-in-code]** Figure 1 sign + fonts + clipping: regenerate with
-  `python src/make_summary_figure.py` -> `paper/figures/fig_rqh_summary.png`. Axis is now
-  "Deadline-miss reduction: decoupled - coupled (pp)" (positive = coupling helps, matches
-  Table II), large fonts, padded layout.
-- **[paper]** None of the paper figures are in the repo (`paper/figures/` was empty). Commit
-  ALL figures so the paper compiles from the repo. Regenerate the per-track ones from
-  `outputs/<track>/phase5,phase6,extras/`.
+- **[done-in-code]** Figure 1 sign + fonts + clipping: `fig_rqh_summary.png` has been
+  regenerated with `python src/make_summary_figure.py`. Axis is now "Deadline-miss
+  reduction: decoupled - coupled (pp)" (positive = coupling helps, matches Table II), large
+  fonts, padded layout. The previous version had the sign-inconsistent axis the reviewer
+  flagged; re-run this script if you re-profile (item 0) so the figure matches the numbers.
+- **[paper]** All 8 figures are committed under `paper/figures/`. After re-profiling
+  (item 0) the RADIATE-derived ones (`fig_contention`, `fig_frontier`, `fig_regimes`,
+  `fig_belief_occlusion`, `fig_rqh_fog`, `fig_phase_diagram`, `fig_rqa1_night`) will be
+  stale; regenerate them from the new `outputs/<track>/phase*` and `extras/`.
 - **[paper]** Standardize terminology: use **"coupled"** everywhere (or "joint" everywhere),
   not both.
 - **[paper]** Define RQ-H and RQ-A1 in the intro before the labels are used.
