@@ -99,17 +99,45 @@ pooled across seeds, of the per-frame miss reduction.
 | Track C - WoodScape Soiling, fisheye (lens contamination) | 0.271 | 0.255 | 0.256 | +0.05pp [-0.01,0.12] | 0.520 | 0.518 | +0.23pp [-0.13,0.58] | +1.56pp [1.14,1.99] |
 | Track A - TartanDrive off-road (309-frame segment) | 0.279 | 0.249 | 0.249 | +0.00pp [0.00,0.00] | 0.628 | 0.601 | +2.67pp [2.16,3.17]* | +3.00pp [0.60,4.80] |
 
-**RADIATE fog deadline-strictness sweep** (multiplier x self-calibrated deadline):
+### 7b. Deadline-strictness sweep (ALL conditions)
+Joint-vs-decoupled reduction (pp) at multiples of each track's self-calibrated deadline.
 
-| mult | deadline (ms) | reduction (95% CI) |
+| track | 0.8x | 0.9x | 1.0x | 1.1x | 1.2x |
+|---|---|---|---|---|---|
+| Track D - RADIATE fog | +0.00 | +0.00 | +9.40* | +0.67 | +0.67 |
+| Track D - RADIATE night | +0.00 | +0.00 | +5.87* | +1.93* | +1.93* |
+| Track D - RADIATE rain (real adverse weather) | +0.00 | +0.00 | +1.13* | +0.53* | +0.53* |
+| Track D - RADIATE snow | +0.00 | +0.00 | +2.80 | +0.93 | +0.93 |
+| Track C - WoodScape Soiling, fisheye (lens contamination) | +0.00 | +0.00 | +1.56* | +0.49* | +0.49* |
+| Track A - TartanDrive off-road (309-frame segment) | +0.00 | +0.00 | +3.00* | +2.53* | +2.53* |
+
+### 7c. Externally-motivated fixed deadlines (not self-calibrated)
+Joint-vs-decoupled reduction (pp) at a fixed perception budget.
+
+| track | 10 Hz (100 ms) | 5 Hz (200 ms) |
 |---|---|---|
-| 0.8x | 174 | +0.00pp [0.00,0.00] |
-| 0.9x | 196 | +0.00pp [0.00,0.00] |
-| 1.0x | 218 | +9.40pp [7.07,11.73]* |
-| 1.1x | 239 | +0.67pp [-0.11,1.44] |
-| 1.2x | 261 | +0.67pp [-0.11,1.44] |
+| Track D - RADIATE fog | -0.07 | +0.00 |
+| Track D - RADIATE night | +1.93* | +0.00 |
+| Track D - RADIATE rain (real adverse weather) | +0.00 | +0.00 |
+| Track D - RADIATE snow | +1.47 | +0.00 |
+| Track C - WoodScape Soiling, fisheye (lens contamination) | +0.00 | +0.00 |
+| Track A - TartanDrive off-road (309-frame segment) | +2.53* | +0.00 |
 
-**RADIATE fog kappa sweep** (joint-vs-decoupled reduction; kappa=0 collapses to decoupled):
+### 7d. Temporally-separated calibration (leakage / circularity check)
+kappa fit on the first half of the trace; RQ-H evaluated on the held-out second half.
+kappa is a structural regime constant, so it should be stable; the held-out test is only
+informative where the held-out window actually contains faults.
+
+| track | kappa full | kappa (1st half) | calib fault % | test fault % | held-out reduction (95% CI) |
+|---|---|---|---|---|---|
+| Track D - RADIATE fog | 0.80 | 0.00 | 0.0% | 8.0% | +0.00pp [0.00,0.00] |
+| Track D - RADIATE night | 0.80 | 0.86 | 16.0% | 0.0% | +3.60pp [-2.27,9.47] |
+| Track D - RADIATE rain (real adverse weather) | 0.80 | 0.00 | 0.0% | 54.0% | +0.00pp [0.00,0.00] |
+| Track D - RADIATE snow | 0.82 | 0.85 | 14.7% | 8.0% | +2.93pp [-0.89,6.75] |
+| Track C - WoodScape Soiling, fisheye (lens contamination) | 0.80 | 0.78 | 7.6% | 8.6% | +1.53pp [0.94,2.11]* |
+| Track A - TartanDrive off-road (309-frame segment) | 0.79 | 0.82 | 62.7% | 0.0% | +0.00pp [0.00,0.00] |
+
+### 7e. RADIATE fog kappa sweep (kappa=0 collapses to decoupled)
 
 | kappa | reduction (95% CI) |
 |---|---|

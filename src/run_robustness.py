@@ -22,9 +22,22 @@ import argparse
 import json
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+
+
+def slice_sub(sub, lo, hi):
+    """A Substrate restricted to frames [lo:hi) (for held-out temporal evaluation)."""
+    return replace(
+        sub, T=hi - lo,
+        s_belief=sub.s_belief[lo:hi], s_instant=sub.s_instant[lo:hi],
+        c_belief=sub.c_belief[lo:hi], c_instant=sub.c_instant[lo:hi],
+        state=sub.state[lo:hi], fault_active=sub.fault_active[lo:hi],
+        L={c: sub.L[c][lo:hi] for c in sub.L}, acc={c: sub.acc[c][lo:hi] for c in sub.acc},
+        s_belief_channels=(sub.s_belief_channels[lo:hi]
+                           if sub.s_belief_channels is not None else None))
 
 
 def on_time_utility(choices, sub, pol) -> float:
@@ -146,28 +159,66 @@ def main() -> int:
         "block": 50, "B": 2000, "mean_pp": float(d_pool.mean() * 100),
         "lo_pp": blo * 100, "hi_pp": bhi * 100}
 
-    # --- 3) sweeps (fog / --sweeps) ---
-    if do_sweeps:
-        # deadline-strictness sweep (coupled)
-        dl_sweep = []
-        for mult in (0.8, 0.9, 1.0, 1.1, 1.2):
-            jl, dlst = [], []
-            dl = base_deadline_s * mult
-            fm = pol.build_frontier_model(dl, lat_dists, subs[0].fm.acc_nominal, subs[0].fm.acc_faulted)
-            for sub in subs:
-                sub.deadline_s = dl
-                jl.append(run("joint", sub, fm)["deadline_miss_rate"])
-                dlst.append(run("decoupled", sub, fm)["deadline_miss_rate"])
-            diff = cistats.paired_diff_ci(dlst, jl)
-            dl_sweep.append({"mult": mult, "deadline_ms": dl * 1e3,
-                             "reduction_pp": diff["mean"] * 100,
-                             "lo_pp": diff["lo"] * 100, "hi_pp": diff["hi"] * 100,
-                             "significant": diff["significant"]})
-        for sub in subs:
-            sub.deadline_s = base_deadline_s  # restore
-        summary["deadline_sweep"] = dl_sweep
+    lag = cfg["regimes"]["coupled"]["onset_to_contention_lag_frames"]
 
-        # kappa sweep (coupled, base deadline)
+    def rqh_at(dl):
+        """Joint-vs-decoupled miss reduction at an arbitrary absolute deadline (s)."""
+        jl, dlst = [], []
+        fm = pol.build_frontier_model(dl, lat_dists, subs[0].fm.acc_nominal, subs[0].fm.acc_faulted)
+        for sub in subs:
+            saved = sub.deadline_s
+            sub.deadline_s = dl
+            jl.append(run("joint", sub, fm)["deadline_miss_rate"])
+            dlst.append(run("decoupled", sub, fm)["deadline_miss_rate"])
+            sub.deadline_s = saved
+        return cistats.paired_diff_ci(dlst, jl)
+
+    # --- 3) deadline-strictness sweep (EVERY condition, not just fog) ---
+    dl_sweep = []
+    for mult in (0.8, 0.9, 1.0, 1.1, 1.2):
+        dl = base_deadline_s * mult
+        diff = rqh_at(dl)
+        dl_sweep.append({"mult": mult, "deadline_ms": dl * 1e3, "reduction_pp": diff["mean"] * 100,
+                         "lo_pp": diff["lo"] * 100, "hi_pp": diff["hi"] * 100,
+                         "significant": diff["significant"]})
+    summary["deadline_sweep"] = dl_sweep
+
+    # --- 3b) externally-motivated FIXED deadlines (perception budget, not self-calibrated) ---
+    fixed = []
+    for hz, dl_ms in ((10.0, 100.0), (5.0, 200.0)):
+        diff = rqh_at(dl_ms / 1e3)
+        fixed.append({"hz": hz, "deadline_ms": dl_ms, "reduction_pp": diff["mean"] * 100,
+                      "lo_pp": diff["lo"] * 100, "hi_pp": diff["hi"] * 100,
+                      "significant": diff["significant"]})
+    summary["fixed_deadline"] = fixed
+
+    # --- 3c) temporally-separated calibration (leakage / circularity rebuttal) ---
+    # Fit kappa ONLY on the first half of the trace (its realized contention draw), then
+    # evaluate RQ-H on the held-out SECOND half. kappa is a structural regime constant, so
+    # a temporal split should leave it (and the result) essentially unchanged. This makes
+    # calibration/test temporal separation explicit and answers the leakage concern.
+    half = subs[0].T // 2
+    fa = subs[0].fault_active
+    calib_ff = float(fa[:half].mean()); test_ff = float(fa[half:].mean())
+    k_split, jm_h, dm_h = [], [], []
+    for sub in subs:
+        ks = pol.fit_coupling(sub.fault_active[:half], sub.state[:half], lag)
+        k_split.append(ks)
+        test = slice_sub(sub, half, sub.T)
+        jm_h.append(run("joint", test, test.fm, kappa=ks)["deadline_miss_rate"])
+        dm_h.append(run("decoupled", test, test.fm)["deadline_miss_rate"])
+    csplit = cistats.paired_diff_ci(dm_h, jm_h)
+    summary["calibration_split"] = {
+        "kappa_full": kappa_cal, "kappa_split_firsthalf_mean": float(np.mean(k_split)),
+        "calib_window_fault_frac": calib_ff, "test_window_fault_frac": test_ff,
+        "heldout_test_frames": int(subs[0].T - half),
+        "heldout_reduction_pp": csplit["mean"] * 100, "lo_pp": csplit["lo"] * 100,
+        "hi_pp": csplit["hi"] * 100, "significant": csplit["significant"],
+        "note": ("held-out test window is fault-sparse; split underpowered"
+                 if test_ff < 0.03 else "held-out test window has faults")}
+
+    # --- 3d) kappa sweep (fog / --sweeps only) ---
+    if do_sweeps:
         kap_sweep = []
         for kap in (0.0, 0.5, 0.75, 1.0):
             jl, dlst = [], []
@@ -213,8 +264,14 @@ def main() -> int:
     print(f"bootstrap miss-reduction: {b['mean_pp']:+.2f}pp [{b['lo_pp']:.2f},{b['hi_pp']:.2f}]")
     rqh = summary["rqh_miss_reduction_dec_minus_joint"]
     print(f"(sanity) RQ-H reduction (dec-joint): {rqh['mean']*100:+.2f}pp [{rqh['lo']*100:.2f},{rqh['hi']*100:.2f}]")
+    cs = summary["calibration_split"]
+    print(f"calib-split (kappa on 1st half {cs['kappa_split_firsthalf_mean']:.2f} vs full {cs['kappa_full']:.2f}); "
+          f"held-out 2nd-half ({cs['heldout_test_frames']} fr) reduction "
+          f"{cs['heldout_reduction_pp']:+.2f}pp [{cs['lo_pp']:.2f},{cs['hi_pp']:.2f}] (sig={cs['significant']})")
+    print("deadline sweep:  " + "  ".join(f"{r['mult']}x:{r['reduction_pp']:+.2f}" for r in summary["deadline_sweep"]))
+    print("fixed deadline:  " + "  ".join(f"{r['hz']:.0f}Hz/{r['deadline_ms']:.0f}ms:{r['reduction_pp']:+.2f}"
+                                          f"[{r['lo_pp']:.1f},{r['hi_pp']:.1f}]" for r in summary["fixed_deadline"]))
     if do_sweeps:
-        print("deadline sweep:  " + "  ".join(f"{r['mult']}x:{r['reduction_pp']:+.2f}" for r in summary["deadline_sweep"]))
         print("kappa sweep:     " + "  ".join(f"k={r['kappa']}:{r['reduction_pp']:+.2f}" for r in summary["kappa_sweep"]))
     if do_noise:
         print("noise sweep (joint-threshold pp):  " + "  ".join(
