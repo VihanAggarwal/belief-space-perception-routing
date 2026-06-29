@@ -103,5 +103,77 @@
     "mean_pp": 5.866666666666666,
     "lo_pp": 3.266666666666666,
     "hi_pp": 8.666666666666668
+  },
+  "deadline_sweep": [
+    {
+      "mult": 0.8,
+      "deadline_ms": 173.78848334774378,
+      "reduction_pp": 0.0,
+      "lo_pp": 0.0,
+      "hi_pp": 0.0,
+      "significant": false
+    },
+    {
+      "mult": 0.9,
+      "deadline_ms": 195.51204376621172,
+      "reduction_pp": 0.0,
+      "lo_pp": 0.0,
+      "hi_pp": 0.0,
+      "significant": false
+    },
+    {
+      "mult": 1.0,
+      "deadline_ms": 217.2356041846797,
+      "reduction_pp": 5.866666666666666,
+      "lo_pp": 2.8734808492924913,
+      "hi_pp": 8.859852484040843,
+      "significant": true
+    },
+    {
+      "mult": 1.1,
+      "deadline_ms": 238.95916460314768,
+      "reduction_pp": 1.9333333333333333,
+      "lo_pp": 0.3736838471067335,
+      "hi_pp": 3.4929828195599333,
+      "significant": true
+    },
+    {
+      "mult": 1.2,
+      "deadline_ms": 260.6827250216156,
+      "reduction_pp": 1.9333333333333333,
+      "lo_pp": 0.3736838471067335,
+      "hi_pp": 3.4929828195599333,
+      "significant": true
+    }
+  ],
+  "fixed_deadline": [
+    {
+      "hz": 10.0,
+      "deadline_ms": 100.0,
+      "reduction_pp": 1.9333333333333333,
+      "lo_pp": 0.3736838471067335,
+      "hi_pp": 3.4929828195599333,
+      "significant": true
+    },
+    {
+      "hz": 5.0,
+      "deadline_ms": 200.0,
+      "reduction_pp": 0.0,
+      "lo_pp": 0.0,
+      "hi_pp": 0.0,
+      "significant": false
+    }
+  ],
+  "calibration_split": {
+    "kappa_full": 0.7971014492753623,
+    "kappa_split_firsthalf_mean": 0.8626984126984126,
+    "calib_window_fault_frac": 0.16,
+    "test_window_fault_frac": 0.0,
+    "heldout_test_frames": 150,
+    "heldout_reduction_pp": 3.5999999999999996,
+    "lo_pp": -2.2707937402818597,
+    "hi_pp": 9.47079374028186,
+    "significant": false,
+    "note": "held-out test window is fault-sparse; split underpowered"
   }
 }

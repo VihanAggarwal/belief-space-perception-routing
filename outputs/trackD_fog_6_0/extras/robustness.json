@@ -146,6 +146,36 @@
       "significant": false
     }
   ],
+  "fixed_deadline": [
+    {
+      "hz": 10.0,
+      "deadline_ms": 100.0,
+      "reduction_pp": -0.06666666666666668,
+      "lo_pp": -0.2517630070131862,
+      "hi_pp": 0.11842967367985287,
+      "significant": false
+    },
+    {
+      "hz": 5.0,
+      "deadline_ms": 200.0,
+      "reduction_pp": 0.0,
+      "lo_pp": 0.0,
+      "hi_pp": 0.0,
+      "significant": false
+    }
+  ],
+  "calibration_split": {
+    "kappa_full": 0.795138888888889,
+    "kappa_split_firsthalf_mean": 0.0,
+    "calib_window_fault_frac": 0.0,
+    "test_window_fault_frac": 0.08,
+    "heldout_test_frames": 150,
+    "heldout_reduction_pp": 0.0,
+    "lo_pp": 0.0,
+    "hi_pp": 0.0,
+    "significant": false,
+    "note": "held-out test window has faults"
+  },
   "kappa_sweep": [
     {
       "kappa": 0.0,

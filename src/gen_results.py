@@ -152,15 +152,44 @@ def main():
                      f"{'*' if jt['significant'] else ''} | {u['joint']['mean']:.3f} | {u['decoupled']['mean']:.3f} | "
                      f"{du['mean']*100:+.2f}pp [{du['lo']*100:.2f},{du['hi']*100:.2f}]{'*' if du['significant'] else ''} | "
                      f"{b['mean_pp']:+.2f}pp [{b['lo_pp']:.2f},{b['hi_pp']:.2f}] |")
-        # fog sweeps
+        # deadline-strictness sweep (every condition, multiplier x self-calibrated deadline)
+        dl_tracks = [t for t in tracks if rob.get(t) and "deadline_sweep" in rob[t]]
+        if dl_tracks:
+            L += ["", "### 7b. Deadline-strictness sweep (ALL conditions)",
+                  "Joint-vs-decoupled reduction (pp) at multiples of each track's self-calibrated deadline.", "",
+                  "| track | 0.8x | 0.9x | 1.0x | 1.1x | 1.2x |", "|---|---|---|---|---|---|"]
+            for t in dl_tracks:
+                cells = {s["mult"]: s for s in rob[t]["deadline_sweep"]}
+                row = " | ".join(f"{cells[m]['reduction_pp']:+.2f}{'*' if cells[m]['significant'] else ''}"
+                                 for m in (0.8, 0.9, 1.0, 1.1, 1.2))
+                L.append(f"| {NAMES.get(t,t)} | {row} |")
+            L += ["", "### 7c. Externally-motivated fixed deadlines (not self-calibrated)",
+                  "Joint-vs-decoupled reduction (pp) at a fixed perception budget.", "",
+                  "| track | 10 Hz (100 ms) | 5 Hz (200 ms) |", "|---|---|---|"]
+            for t in dl_tracks:
+                fx = {s["hz"]: s for s in rob[t].get("fixed_deadline", [])}
+                if 10.0 in fx and 5.0 in fx:
+                    L.append(f"| {NAMES.get(t,t)} | {fx[10.0]['reduction_pp']:+.2f}"
+                             f"{'*' if fx[10.0]['significant'] else ''} | {fx[5.0]['reduction_pp']:+.2f}"
+                             f"{'*' if fx[5.0]['significant'] else ''} |")
+            L += ["", "### 7d. Temporally-separated calibration (leakage / circularity check)",
+                  "kappa fit on the first half of the trace; RQ-H evaluated on the held-out second half.",
+                  "kappa is a structural regime constant, so it should be stable; the held-out test is only",
+                  "informative where the held-out window actually contains faults.", "",
+                  "| track | kappa full | kappa (1st half) | calib fault % | test fault % | held-out reduction (95% CI) |",
+                  "|---|---|---|---|---|---|"]
+            for t in dl_tracks:
+                c = rob[t].get("calibration_split")
+                if not c:
+                    continue
+                L.append(f"| {NAMES.get(t,t)} | {c['kappa_full']:.2f} | {c['kappa_split_firsthalf_mean']:.2f} | "
+                         f"{c['calib_window_fault_frac']*100:.1f}% | {c['test_window_fault_frac']*100:.1f}% | "
+                         f"{c['heldout_reduction_pp']:+.2f}pp [{c['lo_pp']:.2f},{c['hi_pp']:.2f}]"
+                         f"{'*' if c['significant'] else ''} |")
+        # fog kappa sweep
         fog = rob.get("trackD_fog_6_0")
-        if fog and "deadline_sweep" in fog:
-            L += ["", "**RADIATE fog deadline-strictness sweep** (multiplier x self-calibrated deadline):", "",
-                  "| mult | deadline (ms) | reduction (95% CI) |", "|---|---|---|"]
-            for s in fog["deadline_sweep"]:
-                L.append(f"| {s['mult']}x | {s['deadline_ms']:.0f} | {s['reduction_pp']:+.2f}pp "
-                         f"[{s['lo_pp']:.2f},{s['hi_pp']:.2f}]{'*' if s['significant'] else ''} |")
-            L += ["", "**RADIATE fog kappa sweep** (joint-vs-decoupled reduction; kappa=0 collapses to decoupled):", "",
+        if fog and "kappa_sweep" in fog:
+            L += ["", "### 7e. RADIATE fog kappa sweep (kappa=0 collapses to decoupled)", "",
                   "| kappa | reduction (95% CI) |", "|---|---|"]
             for s in fog["kappa_sweep"]:
                 L.append(f"| {s['kappa']} | {s['reduction_pp']:+.2f}pp [{s['lo_pp']:.2f},{s['hi_pp']:.2f}]"
