@@ -8,6 +8,77 @@ Priorities in order: 0 (critical) > 1 > 3 > 2 > 5 > presentation.
 
 ---
 
+## TIER 2 -- what actually moves this from 3/5 to 4-4.5/5 (real evidence)
+
+Blunt truth: the rewrite/robustness fixes below (Tier 1) remove reject-risk and earn
+"honest, well-controlled, clearly scoped" credit -- that is a **safer 3, not a 4**. You
+cannot write your way past the fact that the contention schedule is generated from the
+fault labels (Pc(F)=0.85, Pc(N)=0.05 are hard-coded), so the current strongest true claim
+is "our estimator detects a dependency we imposed." Reviewers score the strength of that
+claim, not the polish. To reach 4/4.5 you need **new evidence that the dependency is real**,
+or a claim that does not depend on it. Two experiments do that; A is the ceiling-breaker,
+B is the safest ROI.
+
+### Experiment A -- measure the real coupling + de-circularize the schedule (BUILT)
+`src/measure_real_coupling.py` is written and ready. It (1) runs C1 over the real frames and
+records per-frame REAL latency + detection count (a compute-load proxy from YOLO output,
+independent of the blur/illum/occlusion fault signals); (2) MEASURES Pc(F)=P(high-load|fault)
+and Pc(N)=P(high-load|nominal) -- the real analogues of the hard-coded 0.85/0.05 -- plus
+corr(fault, load) with a bootstrap CI; (3) re-runs RQ-H with the contention schedule driven
+by the REAL load proxy (via the new `state_override` in `simulate.build_substrate`), so
+kappa is EMPIRICAL, not imposed.
+```bash
+for SEQ in rain_4_0 snow_1_0 fog_6_0 night_1_0; do
+  python src/measure_real_coupling.py --track outputs/trackD_$SEQ \
+     --frames data/frames/radiate_$SEQ --load-proxy detections --max-frames 1500
+done
+# also try --load-proxy latency (real end-to-end latency incl. NMS/postproc)
+```
+- If **Pc(F) > Pc(N)** and the de-circularized reduction stays positive -> the coupling is
+  REAL: you now have an empirical claim about the world, and the coupled regime is justified
+  by data, not assumption. That is a genuine 4.
+- If **Pc(F) ~ Pc(N)** -> honest null: degradation and compute load do not co-occur in this
+  data; report it and reframe the paper as "given a coupled regime, the estimator exploits
+  it" (still a clean 3, and you avoid a reviewer discovering the null for you).
+- Best load proxy is real per-frame latency incl. NMS/postproc (scales with detections);
+  detection count is the cleanest independent proxy. Report both.
+
+### Experiment B -- more than one trace per condition (safest ROI)
+The CIs today are 5 seeds over ONE frozen trace per condition (and only 300 frames for
+RADIATE -- item 0). That is sensitivity to injected noise, not generalization. RADIATE has
+many sequences per weather (rain_1..rain_7, etc.) and you have Dropbox access. Run 3-5
+sequences per condition and report a bootstrap over TRAJECTORIES, not just seeds:
+```bash
+# download e.g. rain_1_0, rain_2_0, rain_3_0 ... then, per sequence:
+python src/extract_radiate.py --seq-dir data/radiate/$SEQ --max-frames 1500
+FRAMES_DIR=data/frames/radiate_$SEQ OUTPUTS_DIR=outputs/trackD_$SEQ python src/run_pipeline.py --skip-extract
+# then aggregate per-condition across sequences (mean +/- cross-sequence CI)
+```
+This turns "significant on a frozen trace" into "generalizes across independent weather
+episodes" -- it lifts the statistics score regardless of Experiment A's outcome. Do this
+together with item 0 (re-profiling at 1500 frames is the same run).
+
+### The noisy-OR is not the contribution -- retitle (do not try to save it)
+The threshold rule `max(b_c, 1[b_f>0.5])` matches the noisy-OR on every condition (all CIs
+include zero, +/-0.5pp), and stays a wash even under heavy observation noise (+/-1.2pp up to
+sigma=0.75). So the specific fusion math the title sells is NOT what drives the result. Do
+not add experiments to defend it -- the evidence says it does not matter. Instead:
+- **Retitle around the coupling / belief-space idea**, not the noisy-OR (e.g. "Coupling
+  Sensor-Fault Belief into Compute-Contention Anticipation for Deadline-Aware Inference").
+- Present the noisy-OR as one sufficient instantiation and the threshold as an equally good
+  realization. The contribution is "use fault belief to anticipate contention," demonstrated
+  with the simplest rule that works.
+
+### Venue lever (IEEE-HPEC is a compute/systems venue, not robotics)
+HPEC reviewers weight the deadline-aware, contention-belief, accuracy-latency-frontier
+engineering more than the "is the robot-world coupling real" question a robotics reviewer
+raises. Lean the framing toward the systems contribution (device-appropriate contention
+characterization, self-calibrated deadline, measured frontier, belief-driven routing under a
+compute budget) and treat the sensor coupling as one application. This does not manufacture
+evidence, but it aligns the claim with what your actual reviewers reward.
+
+---
+
 ## 0. CRITICAL (not in the review, found while auditing): RADIATE RQ-H ran on only 300 frames
 
 `profiling.n_frames: 300` in `config.yaml` bounded the RADIATE profiling to the first
