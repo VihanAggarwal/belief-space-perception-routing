@@ -74,7 +74,11 @@ def load_phase_outputs(cfg: dict):
     return lab, acc_df, lat
 
 
-def build_substrate(cfg: dict, regime: str, seed: int) -> Substrate:
+def build_substrate(cfg: dict, regime: str, seed: int, state_override=None) -> Substrate:
+    """If state_override (a bool contention timeline) is given, it REPLACES the synthetic
+    regime schedule. Use it to drive contention from a real, independently-measured load
+    signal (e.g. per-frame detection count / real latency), so the fault->contention
+    coupling is EMPIRICAL, not imposed (de-circularization; see measure_real_coupling.py)."""
     lab, acc_df, latnpz = load_phase_outputs(cfg)
     # config set is dynamic: derived from config.yaml (supports the extended frontier).
     # Set the module-level CONFIG_KEYS so policies/oracle use the same set this run.
@@ -117,8 +121,11 @@ def build_substrate(cfg: dict, regime: str, seed: int) -> Substrate:
     s_instant = np.max(np.vstack(inst_chan), axis=0)
     p_self_transition = float(hmms["blur"].A[sb.NOMINAL, sb.NOMINAL])
 
-    # --- contention state from regime ---
-    state = reg.make_schedule(regime, T, fault_active, cfg, seed)
+    # --- contention state: real-load override, else synthetic regime schedule ---
+    if state_override is not None:
+        state = np.asarray(state_override, bool)[:T]
+    else:
+        state = reg.make_schedule(regime, T, fault_active, cfg, seed)
 
     # --- realized latency draws per (frame, config) using state ---
     rng = np.random.default_rng(10_000 + seed)
