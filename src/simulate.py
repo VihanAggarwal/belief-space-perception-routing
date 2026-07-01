@@ -123,7 +123,10 @@ def build_substrate(cfg: dict, regime: str, seed: int, state_override=None) -> S
 
     # --- contention state: real-load override, else synthetic regime schedule ---
     if state_override is not None:
-        state = np.asarray(state_override, bool)[:T]
+        state = np.asarray(state_override, bool)
+        if len(state) < T:              # pad short overrides with nominal so shapes match
+            state = np.pad(state, (0, T - len(state)))
+        state = state[:T]
     else:
         state = reg.make_schedule(regime, T, fault_active, cfg, seed)
 
