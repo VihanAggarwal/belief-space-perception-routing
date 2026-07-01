@@ -17,7 +17,8 @@ fault labels (Pc(F)=0.85, Pc(N)=0.05 are hard-coded), so the current strongest t
 is "our estimator detects a dependency we imposed." Reviewers score the strength of that
 claim, not the polish. To reach 4/4.5 you need **new evidence that the dependency is real**,
 or a claim that does not depend on it. Two experiments do that; A is the ceiling-breaker,
-B is the safest ROI.
+B is the safest ROI. Both are built and have turnkey Mac instructions in
+**`MAC_EXPERIMENTS_AB.md`** (works against RADIATE or any dataset).
 
 ### Experiment A -- measure the real coupling + de-circularize the schedule (BUILT)
 `src/measure_real_coupling.py` is written and ready. It (1) runs C1 over the real frames and
@@ -52,7 +53,9 @@ sequences per condition and report a bootstrap over TRAJECTORIES, not just seeds
 # download e.g. rain_1_0, rain_2_0, rain_3_0 ... then, per sequence:
 python src/extract_radiate.py --seq-dir data/radiate/$SEQ --max-frames 1500
 FRAMES_DIR=data/frames/radiate_$SEQ OUTPUTS_DIR=outputs/trackD_$SEQ python src/run_pipeline.py --skip-extract
-# then aggregate per-condition across sequences (mean +/- cross-sequence CI)
+# then aggregate per-condition across sequences (CI over TRAJECTORIES):
+python src/aggregate_multitrace.py --condition rain \
+  --tracks outputs/trackD_rain_1_0 outputs/trackD_rain_2_0 outputs/trackD_rain_3_0 outputs/trackD_rain_4_0
 ```
 This turns "significant on a frozen trace" into "generalizes across independent weather
 episodes" -- it lifts the statistics score regardless of Experiment A's outcome. Do this
