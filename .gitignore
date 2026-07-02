@@ -37,3 +37,7 @@ outputs/_*.log
 
 # RADIATE dataset (Track D, not committed)
 data/radiate/
+
+# Agent tooling (local only, not part of the research artifact)
+.agents/
+skills-lock.json
