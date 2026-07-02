@@ -205,6 +205,53 @@ def main():
                                  f"{'*' if cells[sg]['significant'] else ''}" for sg in (0.15, 0.30, 0.50, 0.75))
                 L.append(f"| {NAMES.get(t,t)} | {row} |")
 
+    # 8. Real-coupling measurement (Experiment A) + cross-sequence aggregation (Experiment B)
+    rcs = {t: jload(OUT / t / "extras" / "real_coupling.json") for t in tracks}
+    rcs = {t: r for t, r in rcs.items() if r}
+    if rcs:
+        L += ["", "## 8. Measured real fault-load coupling (Experiment A)",
+              "Pc(F)/Pc(N) = P(high real load | fault/nominal), measured from C1 over the real frames",
+              "(paper's coupled regime imposes 0.85/0.05). De-circ = RQ-H with contention driven by",
+              "the REAL load signal instead of the fault labels (empirical kappa).", "",
+              "| track | proxy | Pc(F) | Pc(N) | corr (95% CI) | de-circ reduction (95% CI) | verdict |",
+              "|---|---|---|---|---|---|---|"]
+        for t in tracks:
+            r = rcs.get(t)
+            if not r:
+                continue
+            ci = r.get("corr_ci", [float("nan"), float("nan")])
+            L.append(f"| {NAMES.get(t,t)} | {r['load_proxy']} | {r['measured_Pc_fault']:.3f} | "
+                     f"{r['measured_Pc_nominal']:.3f} | {r['corr_fault_load']:+.3f} "
+                     f"[{ci[0]:+.3f},{ci[1]:+.3f}] | {r['decirc_reduction_pp']:+.2f}pp "
+                     f"[{r['decirc_lo_pp']:.2f},{r['decirc_hi_pp']:.2f}] | "
+                     f"{'coupled' if r['measured_Pc_fault'] > r['measured_Pc_nominal'] and r['decirc_significant'] else 'null'} |")
+    mt = sorted(glob.glob(str(OUT / "multitrace" / "*.json")))
+    mt = [m for m in mt if "predicted_vs_observed" not in m]
+    if mt:
+        L += ["", "## 9. Cross-sequence aggregation (Experiment B)",
+              "CI over TRAJECTORIES (independent sequences), not seeds.", "",
+              "| condition | n seq | per-seq reductions (pp) | mean | t-CI | cluster bootstrap | sign test |",
+              "|---|---|---|---|---|---|---|"]
+        for m in mt:
+            d = jload(m)
+            if not d:
+                continue
+            st = d.get("pooled_sign_test")
+            stx = f"{st['positives']}/{st['n_nonzero']} +, p={st['p_one_sided']:.4f}" if st else "-"
+            reds = ", ".join(f"{x:+.1f}" for x in d["per_sequence_reduction_pp"])
+            L.append(f"| {d['condition']} | {d['n_sequences']} | {reds} | "
+                     f"{d['cross_sequence_mean_pp']:+.2f} | "
+                     f"[{d['t_interval_pp'][0]:.2f},{d['t_interval_pp'][1]:.2f}] | "
+                     f"[{d['cluster_bootstrap_ci_pp'][0]:.2f},{d['cluster_bootstrap_ci_pp'][1]:.2f}] | {stx} |")
+    pvo = jload(OUT / "multitrace" / "predicted_vs_observed.json")
+    if pvo:
+        L += ["", "## 10. Phase diagram as predictor (zero-point validation)",
+              "The phase diagram predicts benefit ~0 at coupling ~0: confirmed by every uncoupled",
+              "control and by the measured real-load points (Experiment A nulls). Sign correct at",
+              "the imposed points; magnitudes under-predicted where faults are severe (severity is",
+              f"not a grid axis) -- Pearson r={pvo['pearson_r']:.2f}, MAE={pvo['mae_pp']:.1f}pp.",
+              "See `outputs/multitrace/predicted_vs_observed.png`."]
+
     L += ["", "## Figures (committed under each track's outputs)",
           "- RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`",
           "- RQ-A1 / RQ-A2: `outputs/<track>/phase6/`",

@@ -1,0 +1,102 @@
+{
+  "points": [
+    {
+      "track": "trackD_rain_4_0",
+      "kind": "imposed",
+      "coupling": 0.7979705733130391,
+      "onset_per_min": 4.300264051301395,
+      "predicted_pp": 1.0131473637962962,
+      "observed_pp": 1.1333333333333324
+    },
+    {
+      "track": "trackD_rain_4_0",
+      "kind": "uncoupled-control",
+      "coupling": 0.018670725520040586,
+      "onset_per_min": 4.300264051301395,
+      "predicted_pp": 0.09031015613482131,
+      "observed_pp": 0.0
+    },
+    {
+      "track": "trackD_fog_6_0",
+      "kind": "imposed",
+      "coupling": 0.795138888888889,
+      "onset_per_min": 0.9025949605114705,
+      "predicted_pp": 0.7248611111111117,
+      "observed_pp": 9.399999999999999
+    },
+    {
+      "track": "trackD_fog_6_0",
+      "kind": "uncoupled-control",
+      "coupling": 0.029861111111111116,
+      "onset_per_min": 0.9025949605114705,
+      "predicted_pp": 0.03185185185185183,
+      "observed_pp": 0.0
+    },
+    {
+      "track": "trackD_night_1_0",
+      "kind": "imposed",
+      "coupling": 0.7971014492753623,
+      "onset_per_min": 2.042360060514372,
+      "predicted_pp": 0.625427145227186,
+      "observed_pp": 5.866666666666666
+    },
+    {
+      "track": "trackD_night_1_0",
+      "kind": "uncoupled-control",
+      "coupling": 0.0,
+      "onset_per_min": 2.042360060514372,
+      "predicted_pp": 0.0,
+      "observed_pp": 0.0
+    },
+    {
+      "track": "trackD_snow_1_0",
+      "kind": "imposed",
+      "coupling": 0.8164528969482528,
+      "onset_per_min": 3.9397450753186565,
+      "predicted_pp": 1.1895944380069525,
+      "observed_pp": 2.799999999999999
+    },
+    {
+      "track": "trackD_snow_1_0",
+      "kind": "uncoupled-control",
+      "coupling": 0.22485625829279082,
+      "onset_per_min": 3.9397450753186565,
+      "predicted_pp": 0.9656953234425438,
+      "observed_pp": 0.0
+    },
+    {
+      "track": "trackC",
+      "kind": "imposed",
+      "coupling": 0.7977180204586164,
+      "onset_per_min": 3.0881017257039054,
+      "predicted_pp": 2.3845071510383877,
+      "observed_pp": 1.562216167120802
+    },
+    {
+      "track": "trackC",
+      "kind": "uncoupled-control",
+      "coupling": 0.0,
+      "onset_per_min": 3.0881017257039054,
+      "predicted_pp": 0.0,
+      "observed_pp": 0.0
+    },
+    {
+      "track": "trackA_309",
+      "kind": "imposed",
+      "coupling": 0.7903119190249948,
+      "onset_per_min": 1.941747572815534,
+      "predicted_pp": 0.7352709495283326,
+      "observed_pp": 3.000000000000001
+    },
+    {
+      "track": "trackA_309",
+      "kind": "uncoupled-control",
+      "coupling": 0.09089031191902498,
+      "onset_per_min": 1.941747572815534,
+      "predicted_pp": 0.0969496660469594,
+      "observed_pp": 0.0
+    }
+  ],
+  "pearson_r": 0.2340950512373242,
+  "mae_pp": 1.6598997478103235
+}
