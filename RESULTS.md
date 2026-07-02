@@ -153,6 +153,13 @@ informative where the held-out window actually contains faults.
 | Track D - RADIATE fog | -0.47pp | -1.20pp | -1.20pp | -0.53pp |
 | Track D - RADIATE rain (real adverse weather) | -0.07pp | -0.07pp | -0.07pp | +0.13pp |
 
+## 10. Phase diagram as predictor (zero-point validation)
+The phase diagram predicts benefit ~0 at coupling ~0: confirmed by every uncoupled
+control and by the measured real-load points (Experiment A nulls). Sign correct at
+the imposed points; magnitudes under-predicted where faults are severe (severity is
+not a grid axis) -- Pearson r=0.23, MAE=1.7pp.
+See `outputs/multitrace/predicted_vs_observed.png`.
+
 ## Figures (committed under each track's outputs)
 - RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`
 - RQ-A1 / RQ-A2: `outputs/<track>/phase6/`

@@ -13,6 +13,15 @@ Works on ANY set of sequence outputs (RADIATE, or any dataset run through the pi
 
     python src/aggregate_multitrace.py --condition rain \
         --tracks outputs/trackD_rain_1_0 outputs/trackD_rain_2_0 outputs/trackD_rain_3_0
+
+POOLED mode (--pool): treat every listed sequence as one draw regardless of condition and
+run EXACT nonparametric tests across all of them -- a one-sided exact sign test (k of n
+positive) and a Wilcoxon signed-rank test. With small per-condition n (e.g. 3 traces) the
+parametric t-interval is underpowered; "positive in n/n independent sequences, sign test
+p=1/2^n" is the defensible cross-trace claim (p=0.016 at 6/6, p=0.004 at 8/8).
+
+    python src/aggregate_multitrace.py --condition all --pool \
+        --tracks outputs/trackD_rain_* outputs/trackD_fog_* outputs/trackD_snow_1_0 ...
 """
 from __future__ import annotations
 
@@ -53,10 +62,37 @@ def t_ci(vals, ci=95.0):
     return m, m - t * se, m + t * se
 
 
+def sign_test_onesided(vals):
+    """Exact one-sided sign test: P(>=k positives out of n | p=0.5). Ties (exact zeros)
+    are dropped per convention."""
+    v = [x for x in vals if x != 0.0]
+    n = len(v)
+    k = sum(1 for x in v if x > 0)
+    if n == 0:
+        return float("nan"), 0, 0
+    from math import comb
+    p = sum(comb(n, i) for i in range(k, n + 1)) / 2 ** n
+    return float(p), k, n
+
+
+def wilcoxon_onesided(vals):
+    v = np.asarray([x for x in vals if x != 0.0], float)
+    if len(v) < 4:            # scipy needs a few nonzero values; sign test covers small n
+        return None
+    from scipy import stats
+    try:
+        res = stats.wilcoxon(v, alternative="greater")
+        return float(res.pvalue)
+    except ValueError:
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--condition", required=True, help="label, e.g. rain")
+    ap.add_argument("--condition", required=True, help="label, e.g. rain (or 'all' with --pool)")
     ap.add_argument("--tracks", nargs="+", required=True, help="sequence output dirs for this condition")
+    ap.add_argument("--pool", action="store_true",
+                    help="pool ALL listed sequences (any condition) and run exact sign + Wilcoxon tests")
     args = ap.parse_args()
 
     reductions, per_seq = [], []
@@ -80,6 +116,7 @@ def main() -> int:
             row["measured_Pc_fault"] = rc.get("measured_Pc_fault")
             row["measured_Pc_nominal"] = rc.get("measured_Pc_nominal")
             row["corr_fault_load"] = rc.get("corr_fault_load")
+            row["decirc_reduction_pp"] = rc.get("decirc_reduction_pp")
             if rc.get("measured_Pc_fault") is not None:
                 pcf.append(rc["measured_Pc_fault"]); pcn.append(rc["measured_Pc_nominal"])
             if rc.get("corr_fault_load") is not None:
@@ -106,6 +143,19 @@ def main() -> int:
     if corr:
         summary["corr_fault_load_mean"] = float(np.mean(corr))
 
+    # pooled exact tests across all listed sequences (the small-n honest statistic)
+    if args.pool:
+        p_sign, k, n_nz = sign_test_onesided(reductions)
+        p_wilx = wilcoxon_onesided(reductions)
+        summary["pooled_sign_test"] = {"positives": k, "n_nonzero": n_nz, "p_one_sided": p_sign}
+        summary["pooled_wilcoxon_p_one_sided"] = p_wilx
+        # does-no-harm on the de-circularized (real-load) reductions, if present
+        decirc = [r["decirc_reduction_pp"] for r in per_seq if r.get("decirc_reduction_pp") is not None]
+        if decirc:
+            summary["decirc_pooled"] = {
+                "n": len(decirc), "min_pp": float(np.min(decirc)), "mean_pp": float(np.mean(decirc)),
+                "n_negative": int(sum(1 for x in decirc if x < 0))}
+
     outdir = ROOT / "outputs" / "multitrace"; outdir.mkdir(parents=True, exist_ok=True)
     json.dump(summary, open(outdir / f"{args.condition}.json", "w"), indent=2, default=str)
 
@@ -116,6 +166,16 @@ def main() -> int:
           f"cluster-bootstrap [{lo_b:.2f},{hi_b:.2f}]")
     if summary.get("generalizes") is not None:
         print(f"  generalizes across traces (CI excludes 0): {summary['generalizes']}")
+    if args.pool:
+        st = summary["pooled_sign_test"]
+        print(f"  POOLED sign test: {st['positives']}/{st['n_nonzero']} sequences positive, "
+              f"one-sided p={st['p_one_sided']:.4f}")
+        if summary.get("pooled_wilcoxon_p_one_sided") is not None:
+            print(f"  POOLED Wilcoxon signed-rank: one-sided p={summary['pooled_wilcoxon_p_one_sided']:.4f}")
+        if "decirc_pooled" in summary:
+            dp = summary["decirc_pooled"]
+            print(f"  de-circularized (real load): n={dp['n']}, mean {dp['mean_pp']:+.2f}pp, "
+                  f"min {dp['min_pp']:+.2f}pp, negative on {dp['n_negative']} sequences")
     if pcf:
         print(f"  measured Pc(fault)={np.mean(pcf):.3f} vs Pc(nominal)={np.mean(pcn):.3f} "
               f"(paper hard-codes 0.85 / 0.05); corr(fault,load)={np.mean(corr):+.3f}"
