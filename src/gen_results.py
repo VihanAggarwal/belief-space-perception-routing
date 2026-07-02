@@ -19,12 +19,17 @@ NAMES = {
     "trackA": "Track A - TartanDrive off-road (full 1198 frames)",
     "trackA_309": "Track A - TartanDrive off-road (309-frame segment)",
     "trackC": "Track C - WoodScape Soiling, fisheye (lens contamination)",
-    "trackD_rain_4_0": "Track D - RADIATE rain (real adverse weather)",
+    "trackD_rain_2_0": "Track D - RADIATE rain 2-0",
+    "trackD_rain_3_0": "Track D - RADIATE rain 3-0",
+    "trackD_rain_4_0": "Track D - RADIATE rain 4-0 (real adverse weather)",
     "trackD_snow_1_0": "Track D - RADIATE snow",
-    "trackD_fog_6_0": "Track D - RADIATE fog",
+    "trackD_fog_6_0": "Track D - RADIATE fog 6-0",
+    "trackD_fog_8_0": "Track D - RADIATE fog 8-0",
+    "trackD_fog_8_1": "Track D - RADIATE fog 8-1",
     "trackD_night_1_0": "Track D - RADIATE night",
 }
-ORDER = ["trackD_fog_6_0", "trackD_night_1_0", "trackD_rain_4_0", "trackD_snow_1_0",
+ORDER = ["trackD_fog_6_0", "trackD_fog_8_0", "trackD_fog_8_1", "trackD_night_1_0",
+         "trackD_rain_2_0", "trackD_rain_3_0", "trackD_rain_4_0", "trackD_snow_1_0",
          "trackC", "trackA", "trackA_309"]
 
 

@@ -21,12 +21,16 @@ OUT = ROOT / "outputs"
 
 # (outputs dir, short label) ordered by effect size
 TRACKS = [
-    ("trackD_fog_6_0", "fog"),
+    ("trackD_fog_6_0", "fog 6-0"),
     ("trackD_night_1_0", "night"),
+    ("trackD_fog_8_0", "fog 8-0"),
+    ("trackD_fog_8_1", "fog 8-1"),
     ("trackA_309", "off-road seg."),
     ("trackD_snow_1_0", "snow"),
+    ("trackD_rain_2_0", "rain 2-0"),
+    ("trackD_rain_3_0", "rain 3-0"),
     ("trackC", "soiling"),
-    ("trackD_rain_4_0", "rain"),
+    ("trackD_rain_4_0", "rain 4-0"),
     ("trackA", "off-road full"),
 ]
 
