@@ -57,25 +57,31 @@ to condition config selection, selecting from a four-point
 accuracy--latency frontier (YOLO11x@1280, YOLO11x@640,
 YOLO11n@1280, YOLO11n@640) via a noisy-OR coupling term whose
 coefficient is fit on a held-out calibration draw. We evaluate on
-\textbf{three real datasets spanning two camera geometries}:
-TartanDrive (off-road, rectilinear), RADIATE (adverse weather---
-rain, snow, fog, night---rectilinear stereo), and WoodScape
-Soiling (lens contamination, fisheye), plus controlled injection
-for tracker validation, with five seeds and 95\% confidence
-intervals. The joint policy reduces deadline-miss rate by
-$1.1$--$9.4$ percentage points wherever fault--contention coupling
-is real, statistically significant in five of six coupled
-conditions (a high-degradation off-road segment, rain, fog, night,
-soiling; e.g.\ fog $+9.4$\,pp, 95\% CI $[7.1, 11.7]$; off-road
-$+3.0$\,pp), while \emph{every} uncoupled control yields exactly
-$0.0$\,pp---isolating the coupling, within this imposed regime, as
-the driver of the gain; on the fault-free full off-road trajectory
-the method is correctly inert ($0.0$\,pp). A simple belief threshold
-performs similarly to the noisy-OR (no statistically detectable
-difference), so the contribution is the coupling itself, not its
-functional form. Persistence-aware belief reduces
-config-switching for slow degradations but not fast-flickering rain,
-a fault-type-dependent effect. Experiments ran on Apple~M5 (Metal); the
+\textbf{ten independent sequences from three real datasets spanning
+two camera geometries}: TartanDrive (off-road, rectilinear), RADIATE
+(adverse weather---three rain, three fog, snow, night---rectilinear
+stereo), and WoodScape Soiling (lens contamination, fisheye), plus
+controlled injection for tracker validation. Under fault-conditioned
+contention the coupled policy reduces deadline-miss rate in
+\emph{all ten} sequences ($+1.1$ to $+9.4$ percentage points,
+individually significant in eight; pooled across sequences: mean
+$+3.7$\,pp, trajectory-level 95\% CI $[1.9, 5.5]$, exact sign test
+$p{=}0.001$), while \emph{every} uncoupled control yields exactly
+$0.0$\,pp. We then ask whether such fault--load coupling occurs
+naturally: \textbf{measuring} real per-frame compute load against
+fault state on eight RADIATE sequences shows that it does not
+($P(\text{high load}\mid\text{fault}){=}0.24$ vs.\ $0.26$ under
+nominal sensing; several sequences weakly inverse)---and, exactly as
+our coupling--benefit map predicts at zero coupling, the router is
+correctly inert there ($0.0$--$0.4$\,pp, never negative). The
+contribution is therefore a \emph{validated conditional} plus a
+measurement procedure: coupling fault belief into contention
+anticipation reliably cuts deadline misses where fault--load
+dependence exists, does no harm where it does not, and a
+practitioner can measure which regime a platform is in before
+deploying. A simple belief threshold performs similarly to the
+noisy-OR, so the value lies in the coupling itself, not its
+functional form. Experiments ran on Apple~M5 (Metal); the
 deadline self-calibrates per device, so the deadline-miss
 \emph{comparison}---not absolute latency---is the reported result.
 All code and outputs are released for reproducibility.%
@@ -122,7 +128,7 @@ prior work, to our knowledge, estimates both a sensor-fault belief
 and a compute-contention belief and exploits their coupling to
 reduce deadline-miss rate.
 
-This paper makes four contributions:
+This paper makes five contributions:
 
 \begin{itemize}
   \item We formulate the coupled sensor-fault / compute-contention
@@ -133,33 +139,47 @@ This paper makes four contributions:
     with a coupling prediction from the sensor belief; the coupling
     coefficient $\kappa$ is fit on a held-out calibration draw to
     prevent leakage (\S\ref{sec:method}).
-  \item We evaluate across three real datasets spanning two camera
-    geometries---off-road (TartanDrive), adverse weather (RADIATE:
-    rain/snow/fog/night), and lens soiling on a fisheye camera
-    (WoodScape)---plus controlled injection, with five seeds and
-    95\% $t$-interval CIs, reporting negative and null findings
-    plainly (\S\ref{sec:experiments}).
+  \item We evaluate across ten independent sequences from three real
+    datasets spanning two camera geometries---off-road (TartanDrive),
+    adverse weather (RADIATE: three rain, three fog, snow, night),
+    and lens soiling on a fisheye camera (WoodScape)---plus
+    controlled injection, with per-sequence seed CIs and pooled
+    trajectory-level exact tests, reporting negative and null
+    findings plainly (\S\ref{sec:experiments}).
+  \item We \emph{measure} whether fault--load coupling occurs
+    naturally, rather than assuming it: per-frame real compute load
+    against fault state on eight RADIATE sequences
+    (\S\ref{sec:realcoupling}). It does not (a clean, instrumented
+    null)---and the router is correctly inert there, exactly as our
+    coupling--benefit map predicts at zero coupling. The measurement
+    procedure itself becomes part of the method: a deployment
+    precondition a practitioner can test on their platform.
   \item We release a fully reproducible, config-driven Python
     pipeline covering data acquisition, belief estimation, routing
-    simulation, and statistical testing.\footnotemark[1]
+    simulation, coupling measurement, and statistical
+    testing.\footnotemark[1]
 \end{itemize}
 
-The central finding (Fig.~\ref{fig:summary}) is that modeling the
-coupling between sensor fault and compute contention produces a
-reduction in deadline-miss rate that ranges from small (rain
-$+1.1$\,pp, soiling $+1.6$\,pp) through moderate (off-road segment
-$+3.0$\,pp) to large (night $+5.9$\,pp, fog $+9.4$\,pp). The
+The central finding (Fig.~\ref{fig:summary}) is a validated
+conditional. Under fault-conditioned contention, modeling the
+coupling reduces deadline-miss rate in \emph{every} one of the ten
+sequences tested, from small (rain $+1.1$\,pp, soiling $+1.6$\,pp)
+through moderate (off-road segment $+3.0$\,pp) to large (night
+$+5.9$\,pp, fog $+9.4$\,pp); pooled across sequences the mean is
+$+3.7$\,pp with a trajectory-level 95\% CI of $[1.9, 5.5]$ and an
+exact sign test $p{=}0.001$. The effect is \emph{exactly zero} in
+every uncoupled control, establishing that exploiting the
+coupling---not the belief machinery itself---drives the gain. The
 condition-level pattern suggests the benefit may track
 deadline-binding degradation \emph{severity} more closely than fault
-frequency or correlation strength (an interpretation, not a
-directly measured variable; \S\ref{sec:discussion}). The effect is
-present only where coupling is present and \emph{exactly zero} in
-every uncoupled control, establishing that exploiting the
-coupling---not the belief machinery itself---drives the gain;
-whether field deployments exhibit such fault--contention coupling is
-a separate empirical question we scope in \S\ref{sec:discussion}.
-The effect also vanishes harmlessly on a clean trajectory with no
-faults.
+frequency or correlation strength (an interpretation, not a directly
+measured variable; \S\ref{sec:discussion}). We then close the loop
+that prior drafts of this work (and most prior work) leave open:
+measuring real fault--load co-occurrence shows the coupling is
+\emph{absent} in RADIATE driving data, and the router is correctly
+inert there---never harmful---as predicted
+(\S\ref{sec:realcoupling}). The effect also vanishes harmlessly on a
+clean trajectory with no faults.
 Persistence-aware belief tracking helps on slow degradations but
 hurts on fast-flickering rain, a fault-type-dependent result we
 report without qualification.
@@ -167,16 +187,17 @@ report without qualification.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig_rqh_summary.png}
-  \caption{Headline result (RQ-H). Reduction in deadline-miss rate
-  of the joint policy over the decoupled baseline, by condition,
-  with 95\% CIs over five seeds. Filled circles: coupled regime,
-  CI excludes zero. Square: coupled but not significant (snow).
-  Grey crosses: the matched uncoupled control, exactly $0.0$\,pp in
-  every case. TartanDrive appears twice: the full trajectory (no
-  natural faults) is a clean negative control at $0.0$\,pp, while
-  its high-degradation off-road segment is a significant $+3.0$\,pp.
-  The benefit tracks fault severity, not frequency: fog has the
-  fewest faults yet the largest effect.}
+  \caption{Headline result (RQ-H). Deadline-miss reduction
+  (decoupled $-$ coupled, pp; positive = coupling helps), per
+  sequence, with 95\% CIs over five seeds. Filled circles: coupled
+  regime, CI excludes zero. Open squares: positive but not
+  individually significant (fog 8-1, snow). Grey crosses: the
+  matched uncoupled control, exactly $0.0$\,pp in every case.
+  All ten coupled sequences are positive (pooled sign test
+  $p{=}0.001$); the fault-free full off-road trajectory is a clean
+  negative control at $0.0$\,pp. The benefit tracks fault severity,
+  not frequency: fog 6-0 has among the fewest faults yet the largest
+  effect.}
   \label{fig:summary}
 \end{figure}
 
@@ -496,27 +517,36 @@ computed after polar-unwrap. Fault fraction $8.1\%$; deadline
 $341$\,ms; contention p95 shift $2.50\times$; coupled $r=0.56$.
 
 \textbf{Track D --- RADIATE adverse weather (real; primary).}
-The four sequences \texttt{rain\_4\_0}, \texttt{snow\_1\_0},
-\texttt{fog\_6\_0}, \texttt{night\_1\_0} (left ZED camera,
-rectified to \texttt{camera\_left\_rect}); $2{,}589$--$2{,}659$
-frames each. RADIATE is registration-gated (academic email, CC
-BY-NC-SA). Fault fractions and coupling strengths vary widely by
-weather---rain $44.4\%$ ($r=0.76$), night $12.7\%$ ($r=0.68$),
-snow $18.5\%$ ($r=0.69$), fog $1.9\%$ ($r=0.31$)---which lets us
-test whether the routing benefit tracks fault frequency,
-correlation strength, or fault severity. Contention p95 shifts:
-$2.54$--$2.59\times$. Faults are predominantly occlusion (droplets,
+Eight sequences: \texttt{rain\_2\_0}, \texttt{rain\_3\_0},
+\texttt{rain\_4\_0}, \texttt{fog\_6\_0}, \texttt{fog\_8\_0},
+\texttt{fog\_8\_1}, \texttt{snow\_1\_0}, \texttt{night\_1\_0} (left
+ZED camera, rectified to \texttt{camera\_left\_rect}). RADIATE is
+registration-gated (academic email, CC BY-NC-SA). Each sequence is
+evaluated on its profiled window: the first $300$ frames
+($159$ for the short \texttt{rain\_3\_0}); Table~\ref{tab:rqh}
+reports the in-window frame counts and fault fractions, which is
+what the routing simulation actually sees. Fault fractions and
+coupling strengths vary widely across sequences (fault fraction
+$4.0$--$61.6\%$, coupled $r$ $0.31$--$0.76$), which lets us test
+whether the routing benefit tracks fault frequency, correlation
+strength, or fault severity. Contention p95 shifts:
+$2.5$--$2.6\times$. Faults are predominantly occlusion (droplets,
 snow) and illumination (fog, night). The contention schedule
-distinguishes a \emph{coupled} regime (contention follows
-fault onset) from an \emph{uncoupled} periodic control
-(Fig.~\ref{fig:regimes}).
+distinguishes a \emph{coupled} regime (contention conditioned on the
+\emph{precomputed} Phase-1 fault labels---not on the router's belief
+output, which sees only noisy observations) from an
+\emph{uncoupled} periodic control (Fig.~\ref{fig:regimes}).
+Whether such coupling occurs \emph{naturally} is measured directly
+in \S\ref{sec:realcoupling}.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig_regimes.png}
   \caption{Coupling regimes (RADIATE rain). In the coupled regime
-  compute contention follows detected sensor-fault onset; in the
-  uncoupled control it follows a fixed periodic schedule
+  compute contention is conditioned on the precomputed per-frame
+  fault labels (with a lag); the online router never sees this
+  schedule---only its own beliefs over noisy observations. In the
+  uncoupled control, contention follows a fixed periodic schedule
   independent of faults. The uncoupled regime is the falsification
   test for the coupling claim.}
   \label{fig:regimes}
@@ -596,27 +626,39 @@ dev-environment (Apple M5/MPS).}
 
 Table~\ref{tab:rqh} and Fig.~\ref{fig:summary} give the main
 result. In the coupled regime the joint policy reduces
-deadline-miss rate in every condition that has real faults,
-significantly in five of six (the off-road segment, rain, fog,
-night, soiling); snow is positive in point estimate but its CI
-includes zero (under-powered). The two uses of Track A bracket the
+deadline-miss rate in \emph{all ten} sequences with real faults,
+individually significantly in eight (fog 8-1 and snow are positive
+but their seed CIs include zero). Because per-condition sample sizes
+are small (three traces each for rain and fog), the honest
+generalization statistic is pooled across sequences: mean
+$+3.72$\,pp, trajectory-level 95\% $t$-interval $[1.94, 5.50]$,
+cluster bootstrap over sequences $[2.40, 5.38]$, and an exact
+one-sided sign test $10/10$ positive, $p{=}2^{-10}\!\approx\!0.001$.
+That pool spans two datasets, two camera geometries, and six
+degradation physics, so the claim is that the benefit generalizes
+across independent traces \emph{given} coupling, not that it holds
+for any single weather type. The two uses of Track A bracket the
 mechanism cleanly: the full fault-free trajectory yields exactly
-$0.0$\,pp (negative control), while its $309$-frame
-high-degradation segment yields $+3.0$\,pp ($[2.49,3.51]$) at
-near-matched accuracy ($0.877$ vs.\ $0.880$)---real off-road faults,
-real benefit. Crucially, \emph{every} uncoupled control is exactly
-$0.0$\,pp: the benefit appears if and only if real fault--contention
-coupling is present.
-Fig.~\ref{fig:centerpiece} shows the per-condition view for fog,
+$0.0$\,pp (negative control), while its high-degradation off-road
+segment yields $+3.0$\,pp ($[2.49,3.51]$) at near-matched accuracy
+($0.877$ vs.\ $0.880$)---real off-road faults, real benefit.
+Crucially, \emph{every} uncoupled control is exactly $0.0$\,pp: the
+benefit appears if and only if fault--contention coupling is
+present.
+Fig.~\ref{fig:centerpiece} shows the per-condition view for fog 6-0,
 the strongest case.
 
 \begin{table*}[htbp]
 \caption{RQ-H. Deadline-miss rate, joint vs.\ decoupled, coupled
-regime. $\Delta = $ miss-rate reduction (decoupled $-$ joint), pp,
-with 95\% CI; $^\ast$ = CI excludes zero. $r$ is the measured
-fault--contention correlation in the coupled regime; $\kappa$ is
-the fitted coupling coefficient. Every uncoupled control yields
-$0.0$\,pp.}
+regime, over ten independent sequences. Frames and Fault\,\% are the
+\emph{evaluation window} actually simulated (the profiled prefix of
+each sequence), not the full recording. $\Delta = $ miss-rate
+reduction (decoupled $-$ joint), pp, with 95\% CI over five seeds;
+$^\ast$ = CI excludes zero. $r$ is the measured fault--contention
+correlation in the coupled regime; $\kappa$ is the fitted coupling
+coefficient. Every uncoupled control yields $0.0$\,pp. Pooled over
+the ten coupled sequences: mean $+3.72$\,pp, trajectory-level
+$t$-interval $[1.94, 5.50]$, sign test $10/10$, $p{=}0.001$.}
 \label{tab:rqh}
 \centering
 \small
@@ -628,13 +670,17 @@ $0.0$\,pp.}
 \textbf{Joint miss} & \textbf{Decoup.\ miss} &
 \textbf{$\Delta$ (pp)} & \textbf{Uncoupled $\Delta$} \\
 \midrule
-A & TartanDrive (full, clean) & 1198 & 0.0  & --   & --   & --    & --    & $0.00$ & $0.00$ \\
-A & TartanDrive (off-road seg.) & 309 & 30.4 & 0.74 & 0.79 & 0.249 & 0.279 & $+3.00\ [2.49,\,3.51]^\ast$ & $0.00$ \\
-D & RADIATE rain        & 2651 & 44.4 & 0.76 & 0.80 & 0.233 & 0.244 & $+1.13\ [0.18,\,2.09]^\ast$  & $0.00$ \\
-D & RADIATE snow        & 2589 & 18.5 & 0.69 & 0.82 & 0.313 & 0.341 & $+2.80\ [-0.58,\,6.18]$      & $0.00$ \\
-D & RADIATE fog         & 2659 & 1.9  & 0.31 & 0.80 & 0.329 & 0.423 & $+9.40\ [7.07,\,11.73]^\ast$ & $0.00$ \\
-D & RADIATE night       & 2644 & 12.7 & 0.68 & 0.80 & 0.313 & 0.371 & $+5.87\ [2.87,\,8.86]^\ast$  & $0.00$ \\
-C & WoodScape soiling   & 3303 & 8.1  & 0.56 & 0.80 & 0.256 & 0.271 & $+1.56\ [1.01,\,2.11]^\ast$  & $0.00$ \\
+A & TartanDrive (full, clean) & 300 & 0.0  & --   & --   & --    & --    & $0.00$ & $0.00$ \\
+A & TartanDrive (off-road seg.) & 300 & 31.3 & 0.74 & 0.79 & 0.249 & 0.279 & $+3.00\ [2.49,\,3.51]^\ast$ & $0.00$ \\
+D & RADIATE rain 2-0    & 300 & 4.0  & 0.69 & 0.76 & 0.423 & 0.449 & $+2.67\ [0.75,\,4.59]^\ast$  & $0.00$ \\
+D & RADIATE rain 3-0    & 159 & 61.6 & 0.65 & 0.79 & 0.087 & 0.104 & $+1.76\ [0.48,\,3.04]^\ast$  & $0.00$ \\
+D & RADIATE rain 4-0    & 300 & 27.0 & 0.76 & 0.80 & 0.233 & 0.244 & $+1.13\ [0.18,\,2.09]^\ast$  & $0.00$ \\
+D & RADIATE fog 6-0     & 300 & 4.0  & 0.31 & 0.80 & 0.329 & 0.423 & $+9.40\ [7.07,\,11.73]^\ast$ & $0.00$ \\
+D & RADIATE fog 8-0     & 300 & 7.3  & 0.61 & 0.82 & 0.365 & 0.411 & $+4.53\ [1.55,\,7.51]^\ast$  & $0.00$ \\
+D & RADIATE fog 8-1     & 300 & 6.7  & 0.59 & 0.75 & 0.367 & 0.411 & $+4.47\ [-0.24,\,9.17]$      & $0.00$ \\
+D & RADIATE snow        & 300 & 11.3 & 0.69 & 0.82 & 0.313 & 0.341 & $+2.80\ [-0.58,\,6.18]$      & $0.00$ \\
+D & RADIATE night       & 300 & 8.0  & 0.68 & 0.80 & 0.313 & 0.371 & $+5.87\ [2.87,\,8.86]^\ast$  & $0.00$ \\
+C & WoodScape soiling   & 3303 & 8.1 & 0.56 & 0.80 & 0.256 & 0.271 & $+1.56\ [1.01,\,2.11]^\ast$  & $0.00$ \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -651,16 +697,17 @@ C & WoodScape soiling   & 3303 & 8.1  & 0.56 & 0.80 & 0.256 & 0.271 & $+1.56\ [1
 \end{figure}
 
 The effect size does \emph{not} track fault frequency or
-correlation strength: fog has the lowest fault fraction
-($1.9\%$) and the weakest coupling ($r=0.31$) yet the
-\emph{largest} benefit ($+9.4$\,pp). The driver is fault
-\emph{severity}---rare but severe fog illumination/occlusion
-episodes make the reference config infeasible exactly when
-contention strikes, so anticipating them pre-emptively avoids a
-large block of misses; pervasive but mild rain droplets move the
-needle less. This is the operationally important regime: routing
-matters most when degradation is severe enough to bind the
-deadline.
+correlation strength: fog 6-0 has among the lowest in-window fault
+fractions ($4.0\%$) and the weakest coupling ($r=0.31$) yet the
+\emph{largest} benefit ($+9.4$\,pp), while rain 3-0 has the
+\emph{highest} fault fraction ($61.6\%$) and one of the smallest
+benefits ($+1.8$\,pp). The driver is fault \emph{severity}---rare
+but severe fog illumination/occlusion episodes make the reference
+config infeasible exactly when contention strikes, so anticipating
+them pre-emptively avoids a large block of misses; pervasive but
+mild rain droplets move the needle less. This is the operationally
+important regime: routing matters most when degradation is severe
+enough to bind the deadline.
 
 We note a genuine accuracy--timeliness tradeoff in the most
 severe conditions. On rain, night, and soiling the joint and
@@ -784,8 +831,10 @@ $[0.3,2.3]$, snow $[1.1,4.7]$, fog $[6.9,12.1]$, night $[3.3,8.7]$,
 soiling $[1.1,2.0]$\,pp. (Snow, non-significant under the
 conservative $n{=}5$ seed interval, becomes significant under
 temporal resampling; we retain the seed interval as primary.) This
-checks robustness to temporal structure within a sequence, not
-generalization across sequences, which remains future work.
+checks robustness to temporal structure within a sequence;
+generalization \emph{across} sequences is established separately by
+the pooled trajectory-level interval and exact sign test over the
+ten independent sequences (Table~\ref{tab:rqh}).
 
 Second, sweeping the deadline on fog (Table~\ref{tab:deadline})
 shows the benefit is operating-point dependent and peaks exactly
@@ -836,7 +885,7 @@ the gain.
 Fig.~\ref{fig:phase} generalizes this to a two-dimensional
 (coupling $\times$ fault-onset-rate) sweep of controlled regimes.
 The $\kappa{=}0$ control row is exactly $0.0$\,pp---and is exactly
-$0.0$ across \emph{all seven} tracks---while the benefit grows with
+$0.0$ across \emph{all eleven} tracks---while the benefit grows with
 both the coupling strength and the onset rate (grid maxima
 $7.7$--$10.5$\,pp). This is the cleanest single statement of the
 mechanism: no coupling, no benefit; more coupling and more faults to
@@ -849,7 +898,7 @@ anticipate, more benefit.
   deadline-miss reduction over a coupling-strength $\times$
   fault-onset-rate grid of controlled regimes. The bottom row
   ($\kappa{=}0$) is the no-coupling control and is exactly zero
-  (here and on all seven tracks); the benefit emerges and grows only
+  (here and on all eleven tracks); the benefit emerges and grows only
   with coupling and onset rate.}
   \label{fig:phase}
 \end{figure}
@@ -861,6 +910,53 @@ benefit is $+6.0$\,pp ($[5.6, 6.4]$), still significant, versus
 $+9.4$\,pp on the four-config set. The smaller margin is expected---a
 richer frontier gives the decoupled baseline better fallback
 configs---so the effect is not an artifact of a coarse config set.
+
+\subsubsection{Is the Coupling Real? Measuring Fault--Load
+Co-occurrence}
+\label{sec:realcoupling}
+
+Every result above imposes the coupled regime: contention is
+scheduled from the fault labels with
+$P_c(F){=}0.85$, $P_c(N){=}0.05$. A skeptic can therefore argue that
+the router merely recovers a dependency we constructed. We close
+this loop by \emph{measuring} the dependency on real data. On each
+of the eight RADIATE sequences we run the reference config over the
+real frames and record the per-frame real end-to-end latency
+(including NMS and postprocessing, which scale with scene content)
+as an independent compute-load signal, then measure
+$P(\text{high load} \mid \text{fault})$ vs.\
+$P(\text{high load} \mid \text{nominal})$ (high load = top
+quartile) and the fault--load correlation with a bootstrap CI.
+
+The answer is a clean null: pooled
+$P_c(F){=}0.237$ vs.\ $P_c(N){=}0.257$, per-sequence correlations
+$|r| \le 0.13$---and on three sequences (both heavy-fog and one
+rain) the correlation is significantly \emph{negative}: severe
+degradation suppresses detections, which \emph{reduces} per-frame
+compute. Natural fault--load coupling of the kind our coupled
+regime imposes is absent in this data.
+
+Two further checks make the null informative rather than merely
+disappointing. First, we re-run the full RQ-H substrate with
+contention driven by the \emph{real} measured load signal instead
+of the fault labels (the empirical coupling coefficient then fits
+to $\kappa \le 0.15$ on every sequence): the joint--decoupled gap is
+$0.0$--$0.4$\,pp and \emph{never negative} on all eight
+sequences---the router does no harm when the dependency it models
+is absent. Second, this is exactly what the phase diagram
+(Fig.~\ref{fig:phase}) predicts: at the measured coupling values,
+the predicted benefit is $\le 0.24$\,pp, and the observed values are
+$\le 0.4$\,pp. The zero point of the coupling--benefit map is
+thereby confirmed on real data, not merely on constructed controls.
+
+The practical reading is a deployment precondition, not a universal
+speedup: fault-belief coupling pays where fault and load co-occur
+(shared-SoC robots whose perception, planning, and control contend
+for one accelerator; thermal throttling under sustained load;
+detection-count-scaled downstream trackers), and the measurement
+procedure above---a one-pass profile of the target platform---tells
+a practitioner which regime they are in before enabling the coupled
+router.
 
 \subsubsection{RQ-A1: Persistence-Aware Belief vs.\ Memoryless}
 
@@ -948,17 +1044,21 @@ the $0.0\%$ fault fraction and the null RQ-H result.
 \subsection{Interpreting the Effect Size}
 
 The reduction in deadline-miss rate spans an order of magnitude
-across conditions ($1.1$--$9.4$\,pp) and is statistically
-significant in five of six coupled real conditions. The
+across sequences ($1.1$--$9.4$\,pp), is individually significant in
+eight of ten, and is positive in all ten (pooled $+3.72$\,pp,
+trajectory-level CI $[1.94, 5.50]$, sign test $p{=}0.001$). The
 credibility of the claim rests less on any single number than on
-the triangulation: positive across three real datasets, two camera
-geometries (rectilinear and fisheye), and multiple degradation
-physics (off-road terrain, droplets, snow, fog, night, soiling);
-\emph{exactly zero} in every uncoupled control; and harmlessly zero
-on the fault-free full trajectory.
-That pattern isolates the fault--contention coupling, within the
-imposed regime, as the driver of the gain rather than an artifact of
-the belief estimator or the metric. The most actionable insight is
+the triangulation: positive across ten independent sequences from
+three real datasets, two camera geometries (rectilinear and
+fisheye), and multiple degradation physics (off-road terrain,
+droplets, snow, fog, night, soiling); \emph{exactly zero} in every
+uncoupled control; harmlessly zero on the fault-free full
+trajectory; and---measured, not assumed---zero and never negative
+under real load where the coupling is genuinely absent
+(\S\ref{sec:realcoupling}).
+That pattern isolates the fault--contention coupling as the driver
+of the gain rather than an artifact of the belief estimator or the
+metric. The most actionable insight is
 that the benefit appears to scale with fault \emph{severity}
 (deadline-bindingness), not fault frequency or correlation
 strength---fog being the clearest case. We note that ``severity'' is
@@ -985,11 +1085,15 @@ the smoothing time-constant to the fault's temporal scale.
 The evaluation is offline and trace-driven with no
 hardware-in-the-loop. Compute contention is non-thermal commodity
 load with a two-state model; real embedded contention has richer
-structure. The sensor-to-compute coupling is regime-imposed in the
-coupled/uncoupled controls rather than measured from real
-co-occurrence---this is exactly what licenses the causal reading
-(the uncoupled arm is the falsification test), but a field study of
-naturally co-occurring fault and contention remains future work.
+structure. The sensor-to-compute coupling in the headline experiment
+is regime-imposed---that is what licenses the causal reading (the
+uncoupled arm is the falsification test)---and our own measurement
+(\S\ref{sec:realcoupling}) shows this coupling is \emph{absent} in
+RADIATE driving data: the headline gains therefore quantify what
+coupling is worth \emph{where it exists}, and platforms must be
+profiled (as we show how to) before assuming it. Evaluation windows
+are the profiled prefixes of each sequence
+(Table~\ref{tab:rqh}), not full recordings.
 The pseudo-GT (agreement-with-reference) is blind to systematic C1
 errors, and the per-channel fault labels used to fit the sensor HMM
 are derived from the same health signals the belief then filters, so
@@ -1000,17 +1104,17 @@ all policies (so the RQ-H delta is unbiased) but absolute belief
 calibration is optimistic. RADIATE frames are rectified left-camera
 only; provided radar, LiDAR, and detection annotations are unused.
 The WoodScape soiling temporal axis is dataset order (7--8 frame
-bursts), not continuous video time. Critically, the five seeds reuse
-identical frames and vary only injected sensor-measurement noise, so
-the reported CIs measure sensitivity to that noise---not
-generalization across sequences, vehicles, or contention traces. A
-within-sequence temporal-block bootstrap (\S\ref{sec:experiments})
-confirms robustness to temporal resampling, but honest
-cross-environment intervals still require bootstrap over independent
-trajectories (future work), and the modest $n{=}5$ is why snow is
-under-powered under the primary seed interval. Absolute latencies are
-dev-environment (Apple~M5/MPS) and are not reported as headline
-numbers.
+bursts), not continuous video time. The per-sequence seed CIs
+measure sensitivity to injected observation noise on fixed frames,
+not cross-environment variation; the pooled trajectory-level
+interval and exact sign test over the ten sequences
+(Table~\ref{tab:rqh}) are the generalization statistics, and at
+three traces per weather type the per-condition intervals remain
+under-powered (snow and fog 8-1 are positive but individually
+n.s.). A within-sequence temporal-block bootstrap
+(\S\ref{sec:experiments}) additionally confirms robustness to
+temporal resampling. Absolute latencies are dev-environment
+(Apple~M5/MPS) and are not reported as headline numbers.
 
 \subsection{Future Work}
 
@@ -1027,12 +1131,16 @@ $(b_f, b_c)$, and an oracle that knows the coupling schedule, would
 bound how much a learned fusion could add. \emph{(iii) Generalization and realism.} The
 remaining sensitivity axes (contention intensity, fault--contention
 delay, HMM window/transition parameters) should be swept as we did
-for deadline and $\kappa$; and---most importantly---more independent
-sequences with bootstrap over trajectories (beyond the
-within-sequence temporal-block bootstrap already reported) for
-cross-environment CIs, reportable datacenter-GPU latencies, real
-embedded contention on a Jetson to replace the regime-imposed
-coupling with measured co-occurrence, real RADIATE detection
+for deadline and $\kappa$; and---most importantly---a platform where
+the coupling is \emph{naturally present}: our measurement
+(\S\ref{sec:realcoupling}) shows dashcam-style perception load does
+not track weather faults, so the decisive next experiment is real
+embedded contention on a shared-SoC robot (e.g.\ a Jetson running
+perception, planning, and control together, or a
+detection-count-scaled tracker pipeline), where the same measurement
+procedure can certify natural coupling before routing on it. Also:
+more sequences per condition to power per-weather intervals,
+reportable datacenter-GPU latencies, real RADIATE detection
 annotations instead of pseudo-GT, and a closed-loop downstream-task
 evaluation (e.g.\ MuJoCo navigation with rendered fault injection)
 measuring task success rather than detector agreement.
@@ -1044,24 +1152,29 @@ measuring task success rather than detector agreement.
 We presented a belief-space perception router that estimates
 sensor-fault and compute-contention beliefs via separate HMMs and
 \emph{couples} them with a noisy-OR term to reduce deadline-miss
-rate versus a fair decoupled baseline. Evaluated across three real datasets
-spanning two camera geometries---off-road (TartanDrive), adverse
-weather (RADIATE rain/snow/fog/night), and fisheye lens soiling
-(WoodScape)---with five seeds and 95\% CIs, the joint policy
-reduces deadline-miss rate by $1.1$--$9.4$\,pp wherever
-fault--contention coupling is real, significantly in five of six
-coupled conditions, while every uncoupled control and the
-fault-free trajectory produce exactly zero improvement. A simple
-belief-threshold rule performs comparably on RQ-H, locating the
-contribution in the coupling rather than its functional form; the
-condition-level results suggest the benefit may track
-deadline-binding severity more than frequency; and persistence-aware
+rate versus a fair decoupled baseline. Evaluated on ten independent
+sequences across three real datasets and two camera
+geometries---off-road (TartanDrive), adverse weather (RADIATE:
+three rain, three fog, snow, night), and fisheye lens soiling
+(WoodScape)---the coupled policy reduces deadline-miss rate in
+every sequence ($+1.1$ to $+9.4$\,pp; pooled $+3.7$\,pp,
+trajectory-level CI $[1.9, 5.5]$, sign test $p{=}0.001$), while
+every uncoupled control and the fault-free trajectory produce
+exactly zero improvement. Measuring real fault--load co-occurrence
+then shows the coupling is \emph{absent} in this driving data---and
+the router is correctly, measurably inert there (never harmful),
+exactly as the coupling--benefit map predicts at zero coupling. The
+result is a validated conditional with a deployment precondition:
+couple fault belief into contention anticipation where a one-pass
+platform profile certifies fault--load dependence; the mechanism
+reliably converts that dependence into fewer deadline misses, and
+costs nothing where the dependence is absent. A simple
+belief-threshold rule performs comparably, locating the contribution
+in the coupling rather than its functional form; persistence-aware
 belief helps on slow degradations but hurts on fast-flickering
 rain---a fault-type-dependent finding reported without
-qualification. The
-work establishes coupled belief-space modeling of fault and
-contention as a tractable, measurable research direction, and
-releases a fully reproducible pipeline.
+qualification. All code, outputs, and the measurement procedure are
+released.
 
 % ---------------------------------------------------------------
 \bibliographystyle{IEEEtran}
