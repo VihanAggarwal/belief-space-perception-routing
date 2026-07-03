@@ -61,8 +61,11 @@ present (significant over seeds in five of six conditions), while
 every uncoupled control and the fault-free trajectory yield exactly
 $0.0$\,pp. We then directly test whether this coupling occurs in
 un-manipulated data across eight real RADIATE sequences and three
-independent load proxies: after correcting for multiple testing, we
-find no confirmed case of naturally-occurring coupling. Deadline-miss
+independent load proxies: after Benjamini--Hochberg correction and a
+replication run, zero of 24 tests support naturally-occurring
+coupling -- an honest null we report as the method's central open
+premise, together with the released pipeline any deployment can use
+to test its own traces. Deadline-miss
 conclusions do not depend on pseudo-ground-truth accuracy labels;
 conclusions involving accuracy and combined utility should be read as
 internal-consistency results only, since a real-annotation validation
@@ -106,14 +109,14 @@ task-specific labels; (ii) derives a noisy-OR joint policy with a
 coupling coefficient $\kappa$ fit on held-out calibration draws;
 (iii) evaluates across three real datasets, two camera geometries,
 and controlled injection, with five seeds and 95\% $t$-interval CIs,
-reporting null findings plainly; and (iv) -- going beyond a standard
-ablation -- directly interrogates the coupling assumption itself with
-five checks (measured coupling via three independent load proxies
-with a multiple-testing correction, cross-sequence $\kappa$ transfer,
-cross-trajectory generalization, an oracle/reactive-baseline bound,
-and a real-GT accuracy-axis validation) rather than only exhibiting
-the mechanism under a constructed regime. We release a fully
-reproducible, config-driven pipeline.\footnotemark[1]
+reporting null findings plainly; and (iv) directly interrogates the
+coupling assumption itself with five checks -- measured coupling via
+three independent load proxies under a multiple-testing correction,
+cross-sequence $\kappa$ transfer, cross-trajectory generalization, an
+oracle/reactive-baseline bound, and a real-GT accuracy-axis
+validation -- rather than only exhibiting the mechanism under a
+constructed regime. We release a fully reproducible, config-driven
+pipeline.\footnotemark[1]
 
 Fig.~\ref{fig:summary} previews the headline result: the joint policy
 reduces deadline-miss rate when the experimentally-imposed coupling
@@ -143,11 +146,11 @@ uncoupled control and on the fault-free trajectory.
 
 TartanDrive \cite{triest2022tartandrive,sivaprakasam2024tartandrive2}
 provides large-scale off-road driving data; RADIATE
-\cite{sheeny2021radiate} provides real adverse-weather stereo
-sequences; WoodScape \cite{yogamani2019woodscape} provides fisheye
-automotive frames with real soiling masks -- together spanning two
-camera geometries and multiple degradation physics. Sensor-fault
-monitoring is typically deterministic or binary
+\cite{sheeny2021radiate} real adverse-weather stereo sequences;
+WoodScape \cite{yogamani2019woodscape} fisheye frames with real
+soiling masks -- together two camera geometries and multiple
+degradation physics. Sensor-fault monitoring is typically
+deterministic or binary
 \cite{antonante2022monitoring,bogdoll2022anomaly,hou2023fault};
 recent stress-testing \cite{tian2025fault} and the RoboDrive
 Challenge \cite{robodrive2024} show accuracy collapses under
@@ -226,8 +229,9 @@ latency under nominal compute, so C1 is borderline-feasible
 uncontended and infeasible under contention while cheaper configs
 remain feasible -- real routing pressure without hand-tuning, and a
 device-agnostic comparison. Table~\ref{tab:frontier} shows the
-measured frontier is sensible on every track (C1 highest, C4 lowest)
-and the contention-induced accuracy gap that must be traded against
+pseudo-GT frontier produces a consistent internal agreement ordering
+on the selected tracks (C1 highest, C4 lowest) and the
+contention-induced agreement gap that must be traded against
 timeliness ($0.24$--$0.53$ absolute F1 between C1 and C4) --
 \emph{under the pseudo-GT metric}; the deadline-miss numbers below do
 not depend on this metric at all.
@@ -371,19 +375,16 @@ latencies are not headline numbers. All comparisons use 5 seeds
 (95\% $t$-interval, paired difference tests); the real frames are
 identical across seeds, so seed variance reflects sensor-measurement
 noise only. \textbf{On ``significant'':} unless stated, it means the
-95\% CI over these 5 seed draws excludes zero -- a small-sample
-interval over resampled noise on one fixed trajectory. Where a
-different resampling unit is used we say so: ``under temporal
-resampling'' means a block-bootstrap WITHIN one trace; ``under
-cluster resampling'' means resampling INDEPENDENT SEQUENCES ($n{=}3$
-per condition, \S\ref{sec:rqcoupling}) -- the weakest-powered of the
-three and the only one that speaks to cross-trajectory
-generalization; we report that result as ``directionally consistent
-across tested sequences,'' not as generalization, since the
-parametric interval does not exclude zero. Testing the same
-hypothesis across multiple sequences and proxies
-(\S\ref{sec:rqcoupling}d) uses a Benjamini--Hochberg correction, not
-just uncorrected per-test $p$-values.
+95\% CI over these 5 seed draws excludes zero -- noise sensitivity on
+one fixed trajectory. Other resampling units are named explicitly:
+``temporal resampling'' block-bootstraps WITHIN one trace; ``cluster
+resampling'' resamples INDEPENDENT SEQUENCES ($n{=}3$ per condition,
+\S\ref{sec:rqcoupling}), the only unit that speaks to cross-trajectory
+generalization -- reported as ``directionally consistent,'' not
+generalizing, since its interval includes zero. Repeated tests across
+sequences and proxies (\S\ref{sec:rqcoupling}d) use paired $p$-values
+computed directly from seed-level differences with
+Benjamini--Hochberg correction.
 
 % ---------------------------------------------------------------
 \section{Results}
@@ -397,10 +398,10 @@ real faults, significantly in five of six; snow is positive but
 under-powered. The two uses of Track A bracket the mechanism: the
 full fault-free trajectory yields exactly $0.0$\,pp, while its
 high-degradation segment yields $+3.0$\,pp at near-matched accuracy.
-\emph{Every} uncoupled control is exactly $0.0$\,pp: the benefit
-appears if and only if the experimentally-imposed coupling is
-enabled -- this is a deadline-miss result and does not depend on the
-pseudo-GT accuracy metric at all. The effect does \emph{not} track
+\emph{Every} uncoupled control is exactly $0.0$\,pp: within the
+evaluated schedules, the benefit appears only when the
+experimentally-imposed coupling is enabled -- a deadline-miss result
+that does not depend on the pseudo-GT accuracy metric at all. The effect does \emph{not} track
 fault frequency or correlation strength -- fog has the lowest fault
 fraction ($1.9\%$) and weakest coupling ($r{=}0.31$) yet the largest
 benefit ($+9.4$\,pp), because rare but severe fog episodes make the
@@ -409,14 +410,12 @@ the joint policy trades task accuracy ($0.861$ vs.\ $0.954$,
 pseudo-GT) to cut misses; on rain, night, and soiling accuracy is
 near-matched -- a controllable operating point, not a free lunch. A
 combined on-time-utility metric $U$ (accuracy if on-time, else zero,
-averaged over all frames) confirms no condition loses under coupling
-($U$ nonnegative throughout; significantly higher for off-road,
-rain, night; fog is break-even, $+0.07$\,pp). \textbf{Unlike the
-deadline-miss result above, $U$ and the accuracy numbers throughout
-this paper are computed against pseudo-GT and should be read as
-internal-consistency results (a config's agreement with C1), not
-validated measures of real-world accuracy} -- \S\ref{sec:rqcoupling}e
-shows the pseudo-GT config ranking does not match real annotations.
+averaged over all frames) is nonnegative throughout (significantly
+higher for off-road, rain, night; fog break-even, $+0.07$\,pp).
+\textbf{Unlike the deadline-miss result, $U$ and all accuracy numbers
+are computed against pseudo-GT and are internal-consistency results
+only} -- \S\ref{sec:rqcoupling}e shows the pseudo-GT config ranking
+does not match real annotations.
 
 \begin{table*}[htbp]
 \caption{RQ-H. Deadline-miss rate, joint vs.\ decoupled, coupled
@@ -456,40 +455,33 @@ competitive but inconsistent (better on three tracks, worse on four),
 again pointing to the coupled features rather than the routing
 function as the source of the gain.
 
-An \textbf{Oracle Contention Router} (true contention state,
-not belief) is statistically indistinguishable from, or in several
+An \textbf{Oracle Contention Router} (true contention state, not
+belief) is statistically indistinguishable from, or in several
 conditions numerically worse than, the joint policy -- not because
 belief beats ground truth, but because feasibility is defined at the
-median-latency threshold ($P(\text{meet}){\ge}0.5$): both oracle and
-joint may pick a max-accuracy config whose realized latency exceeds
-the deadline up to half the time by design, so perfect state
-knowledge does not by itself tighten that threshold. Little of the
-residual miss rate is recoverable headroom from a better contention
-estimator under this decision rule. A \textbf{Reactive-Latency}
-baseline (no sensor information at all) achieves a \emph{lower} miss
-rate than the joint policy in several conditions but at an accuracy
-cost (pseudo-GT) -- it can never upweight accuracy under a real fault
--- so the combined utility $U$ is lower for Reactive-Latency than
-Joint in five of seven conditions (significantly on full off-road and
-fog): miss rate alone favors the naive baseline exactly where it
-sacrifices the accuracy coupling is meant to protect. Router overhead
-itself (HMM filtering, fusion, selection, on CPU) is negligible: a
-batch-fit upper bound of $19$--$32\,\mu$s/frame ($\le0.015\%$ of
-reference latency) and $0.1$--$1.2\,\mu$s/frame for the steady-state
-decision step alone.
+median-latency threshold ($P(\text{meet}){\ge}0.5$), which perfect
+state knowledge does not by itself tighten; little residual miss rate
+is recoverable by a better contention estimator under this rule. A
+\textbf{Reactive-Latency} baseline (no sensor information at all)
+achieves a lower miss rate in several conditions but at an accuracy
+cost (pseudo-GT): the combined utility $U$ is lower than Joint's in
+five of seven conditions (significantly on full off-road and fog) --
+miss rate alone favors the naive baseline exactly where it sacrifices
+the accuracy coupling is meant to protect. Router overhead (HMM
+filtering, fusion, selection, on CPU) is negligible:
+$19$--$32\,\mu$s/frame batch-fit upper bound ($\le0.015\%$ of
+reference latency), $0.1$--$1.2\,\mu$s/frame steady-state.
 
-A moving-block bootstrap ($B{=}2000$) over the temporal axis confirms
-the deltas are not driven by a handful of frames (all six conditions
-exclude zero under temporal resampling). Sweeping the deadline on fog
-shows the benefit peaks exactly where the reference config is
-borderline-feasible and shrinks to n.s.\ at looser deadlines;
-sweeping $\kappa$ directly gives a monotonic response from $0.0$\,pp
-at $\kappa{=}0$ to $+10.9$\,pp at $\kappa{=}1$
-(Fig.~\ref{fig:phase} generalizes this to a coupling$\times$onset-rate
-grid, exactly zero at $\kappa{=}0$ on all seven tracks). Re-profiling
-a denser nine-config frontier on fog leaves the result intact
-($+6.0$\,pp vs.\ $+9.4$\,pp on four configs; smaller because the
-richer frontier gives the decoupled baseline better fallbacks).
+A moving-block bootstrap ($B{=}2000$) confirms the deltas are not
+driven by a handful of frames (all six conditions exclude zero under
+temporal resampling). The fog benefit peaks exactly where the
+reference config is borderline-feasible and shrinks to n.s.\ at
+looser deadlines; sweeping $\kappa$ gives a monotonic response from
+$0.0$\,pp at $\kappa{=}0$ to $+10.9$\,pp at $\kappa{=}1$
+(Fig.~\ref{fig:phase}: exactly zero at $\kappa{=}0$ on all seven
+tracks). A denser nine-config frontier leaves the fog result intact
+($+6.0$ vs.\ $+9.4$\,pp; smaller because the richer frontier gives
+the decoupled baseline better fallbacks).
 
 \begin{figure}[t]
   \centering
@@ -557,45 +549,46 @@ summarizes five checks.
 
 \textbf{(a) Measured coupling.} For every sequence we record real
 per-frame latency and detection count (proxies independent of the
-fault signals), then re-run RQ-H with contention scheduled from the
-measured proxy instead of the fault label. Every condition's
-correlation CI centers near zero or the wrong sign, and the
-de-circularized reduction collapses to $\approx0.0$\,pp across all 8
-sequences and both proxies -- a null: the imposed regime
-\emph{constructs} the coupled scenario used in RQ-H; we do not find
-one already present in RADIATE by these two proxies.
+fault signals) and re-run RQ-H with contention scheduled from the
+measured proxy instead of the fault label. Every correlation CI
+centers near zero or the wrong sign and the de-circularized reduction
+collapses to $\approx0.0$\,pp on all 8 sequences and both proxies:
+the imposed regime \emph{constructs} the coupled scenario; we do not
+find one already present in RADIATE by these proxies.
 
-\textbf{(b) Cross-sequence generalization.} For rain and fog (3
+\textbf{(b) Cross-sequence consistency.} For rain and fog (3
 independent sequences each) the per-sequence effect is positive in
-all six traces and the cluster (resample-sequences) bootstrap stays
-entirely positive, but the cross-sequence $t$-interval includes zero
-for both. We report this as \emph{directionally consistent across
-tested sequences}, not as generalizing, since $n{=}3$ does not
-exclude zero at the trajectory level.
+all six traces and the cluster bootstrap stays entirely positive, but
+the cross-sequence $t$-interval includes zero for both -- reported as
+\emph{directionally consistent across tested sequences}, not as
+generalizing.
 
 \textbf{(c) Cross-sequence $\kappa$ transfer.} Fitting $\kappa$
-entirely on a \emph{different} sequence and transplanting it onto a
-test sequence changes the RQ-H reduction by at most $0.07$\,pp in
-four tested pairs, still significant in all four: $\kappa$ behaves
-as a stable structural property of the imposed regime, not something
-overfit to one trajectory.
+entirely on a \emph{different} sequence and transplanting it changes
+the RQ-H reduction by at most $0.07$\,pp in four tested pairs, still
+significant in all four: $\kappa$ behaves as a stable structural
+property of the imposed regime, not per-trajectory overfit.
 
 \textbf{(d) A genuinely independent workload, multiple-testing
 corrected.} Parts (a),(d) together run 24 tests (8 sequences
 $\times$ 3 proxies: detections, latency, and a real, CPU-bound,
 entirely separate ORB keypoint-matching workload independent of the
-detector). One nominally positive result emerges
-(\texttt{rain\_2\_0}, ORB proxy: de-circularized reduction
-$+2.73$\,pp, uncorrected 95\% CI $[1.62,3.84]$, close to its imposed
-value $+2.67$\,pp, uncorrected two-sided $p\approx0.0024$). Converting
-each test's CI to a $t$-statistic and applying Benjamini--Hochberg
-across all 24 at $q{=}0.05$, its rank-1 threshold is
-$(1/24)\times0.05\approx0.0021$, which its $p$ narrowly misses. We
-therefore treat it as \textbf{exploratory evidence}, not a confirmed
-real coupling case: one nominally significant result among 24 tests
-is within the range expected by chance and motivates a targeted
-follow-up (repeated trials on \texttt{rain\_2\_0}) rather than
-standing as a finding on its own.
+detector). We computed paired two-sided $p$-values directly from the
+five seed-level differences of each test and applied
+Benjamini--Hochberg across all 24 at $q{=}0.05$; the tests are not
+fully independent (proxies share frames within a sequence, sequences
+share a condition), a positive-dependence structure under which BH
+still controls the false-discovery rate. A first run produced one
+nominally positive result (\texttt{rain\_2\_0}, ORB proxy:
+$+2.73$\,pp, $p{\approx}0.0024$), which narrowly missed its rank-1 BH
+threshold ($0.05/24{\approx}0.0021$). Because the ORB proxy is timed
+in real wall-clock and thus varies run to run, we then
+\emph{re-measured} it: on replication the effect vanished entirely
+($+0.00$\,pp, $p{=}1$; $P_c(\text{fault}){=}0.211 <
+P_c(\text{nominal}){=}0.256$). After correction and replication,
+\textbf{zero of 24 tests support naturally-occurring coupling}; the
+one nominal positive was a measurement-timing artifact, exactly the
+outcome multiple-testing discipline exists to catch.
 
 \textbf{(e) Real annotations vs.\ pseudo-GT.} We projected RADIATE's
 real radar-derived object annotations onto the camera image
@@ -605,13 +598,10 @@ RADIATE rain (500 frames). Real-GT F1 is far lower and flatter across
 configs ($0.19$--$0.22$) than pseudo-GT F1 ($0.73$--$1.00$), the
 config ranking does not match, and per-frame correlation between the
 two is weak and sign-mixed. Coarser radar-projected boxes explain
-part of the absolute gap, but the ranking mismatch means pseudo-GT
-should be treated as an internal consistency check (a config's
-agreement with C1), not a validated proxy for absolute or relative
-real-world accuracy -- every accuracy and utility ($U$) number
-reported in this paper inherits that limitation, while the RQ-H
-deadline-miss numbers (Table~\ref{tab:rqh}) do not depend on
-pseudo-GT at all.
+part of the absolute gap, but the ranking mismatch means pseudo-GT is
+an internal consistency check, not a validated accuracy proxy --
+every accuracy and utility number inherits that limitation, while the
+RQ-H deadline-miss numbers (Table~\ref{tab:rqh}) do not.
 
 \begin{table}[htbp]
 \caption{RQ-Coupling summary (RADIATE, 8 sequences). ``Result''
@@ -627,22 +617,20 @@ reports the honest, multiple-testing-aware outcome of each check.}
 (a) Real coupling & Null: de-circ.\ $\Delta\approx0.0$\,pp vs.\ imposed $1.1$--$9.4$\,pp \\
 (b) Cross-seq.\ consistency & Positive all 6 traces; $t$-CI incl.\ 0 at $n{=}3$ (not generalization) \\
 (c) $\kappa$ transfer & Clean: $\le0.07$\,pp shift, sig.\ in 4/4 pairs \\
-(d) Independent workload (BH-corrected) & Null in 24/24 after correction; rain\_2\_0 is exploratory only \\
+(d) Independent workload (BH-corrected) & Null in 24/24 after correction; the one nominal positive failed replication \\
 (e) Real-GT accuracy & Ranking mismatch; pseudo-GT is an internal check only \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Taken together, RQ-Coupling reframes rather than overturns RQ-H: the
-joint policy still recovers the imposed coupling whenever enabled and
-never loses, and $\kappa$ transfers across sequences, but after
-correcting for multiple testing we find \emph{no} confirmed case of
-naturally-occurring coupling in un-manipulated RADIATE data, and
-cross-trajectory generalization is directionally consistent but not
-confirmed. RQ-H is a proof of mechanism under a controlled,
-experimentally-imposed regime, not evidence that such coupling, or
-the accuracy differences it is scored against, arise naturally in
-the field.
+Taken together: the joint policy produces nonnegative deadline-miss
+reductions in all tested imposed-coupling conditions and $\kappa$
+transfers across sequences, but after correction and replication we
+find \emph{no} confirmed case of naturally-occurring coupling in
+un-manipulated RADIATE data. RQ-H is a proof of mechanism under a
+controlled, experimentally-imposed regime -- not evidence that such
+coupling, or the accuracy differences it is scored against, arise
+naturally in the field.
 
 % ---------------------------------------------------------------
 \section{Discussion}
@@ -655,19 +643,32 @@ fault-free trajectory -- isolating coupling as the driver rather than
 an estimator or metric artifact. The benefit tracks fault
 \emph{severity} (deadline-bindingness) more than frequency or
 correlation, an interpretation inferred from condition-level outcomes
-rather than a directly measured variable.
+rather than a directly measured variable. Since the threshold rule
+matches the noisy-OR, the supported claim is that \emph{using fault
+belief to anticipate contention} helps -- not that the particular
+noisy-OR belief-fusion algorithm is itself the advance.
+
+\textbf{What the paper does and does not establish.} We could not
+demonstrate the coupling premise in ordinary data (zero of 24
+corrected tests). The contributions are (i) a proof of mechanism --
+when coupling exists, a router that exploits it beats one that
+cannot, with a falsification control at exactly zero -- and (ii) a
+reusable, released evaluation pipeline (imposed-schedule substrate,
+de-circularization, independent-workload probe, multiple-testing
+protocol) that any deployment can run on its own traces to test
+whether \emph{its} regime is coupled before adopting the method.
 
 \textbf{Limitations.} The evaluation is offline and trace-driven,
 with a two-state, non-thermal contention model, evaluated only on an
 Apple M5 -- not a shared embedded perception/planning/control stack.
-The coupling is regime-imposed by design (the uncoupled arm is the
-falsification test); we directly tested whether it occurs naturally
-(\S\ref{sec:rqcoupling}) with three load proxies and, after
-multiple-testing correction, found no confirmed case in 8 sequences.
 Pseudo-GT is blind to systematic C1 error and only weakly validated
 against real annotations (part e); every accuracy- or utility-based
-conclusion in this paper should be read with that caveat, whereas the
-deadline-miss conclusions (Table~\ref{tab:rqh}) do not depend on it.
+conclusion should be read with that caveat, whereas the deadline-miss
+conclusions (Table~\ref{tab:rqh}) do not depend on it. Moreover,
+because pseudo-GT influences configuration ranking inside the
+router's max-expected-accuracy objective, the deadline-miss result
+establishes the timing mechanism but does not establish that the
+selected configurations are optimal under real task accuracy.
 The five seeds vary only injected measurement noise on identical real
 frames, so seed CIs measure noise sensitivity, not cross-sequence
 generalization -- which we separately bootstrap over 3 independent
@@ -698,14 +699,16 @@ coupling is enabled (significant in five of six conditions), while
 every uncoupled control and the fault-free trajectory are exactly
 zero -- a result that does not depend on pseudo-ground-truth
 accuracy. Five further checks stress-test rather than assume the
-coupling regime: after a multiple-testing correction we find no
-confirmed case of naturally-occurring coupling in 8 real sequences,
-$\kappa$ nonetheless transfers cleanly across sequences, and the
-pseudo-GT accuracy axis is only an internal consistency check. The
-result is best read as a proof of mechanism under controlled, imposed
-coupling, with a clearly scoped open question -- whether such
-coupling arises naturally in the field -- and a fully reproducible
-pipeline to test it further.
+coupling regime: after Benjamini--Hochberg correction and a
+replication run, zero of 24 tests support naturally-occurring
+coupling in 8 real sequences; $\kappa$ nonetheless transfers cleanly
+across sequences; and the pseudo-GT accuracy axis is an internal
+consistency check only, so the timing mechanism is established but
+config optimality under real task accuracy is not. The result is a
+proof of mechanism under controlled, imposed coupling, with a clearly
+scoped open question -- whether such coupling arises naturally -- and
+a reproducible pipeline built to let any deployment answer that
+question on its own traces.
 
 % ---------------------------------------------------------------
 \bibliographystyle{IEEEtran}

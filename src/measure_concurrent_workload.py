@@ -146,6 +146,10 @@ def main() -> int:
         "decirc_empirical_kappa": emp_kappa,
         "decirc_reduction_pp": red["mean"] * 100, "decirc_lo_pp": red["lo"] * 100,
         "decirc_hi_pp": red["hi"] * 100, "decirc_significant": red["significant"],
+        # per-seed paired differences (decoupled - joint, pp) and the two-sided paired
+        # t-test p computed DIRECTLY from them (for multiple-testing correction)
+        "decirc_per_seed_reduction_pp": [(d - j) * 100 for d, j in zip(dm, jm)],
+        "decirc_p_two_sided": red["p_two_sided"],
         "imposed_reduction_pp": imposed, "verdict": verdict,
     }, open(extras / "concurrent_workload_coupling.json", "w"), indent=2, default=str)
     print(f"  -> {extras / 'concurrent_workload_coupling.json'}")
