@@ -3,19 +3,27 @@
   "load_proxy": "concurrent_orb_workload",
   "n_frames": 1500,
   "high_quantile": 0.75,
-  "measured_Pc_fault": 0.26842105263157895,
-  "measured_Pc_nominal": 0.24732824427480915,
-  "corr_fault_load": 0.037433162590591346,
+  "measured_Pc_fault": 0.21052631578947367,
+  "measured_Pc_nominal": 0.25572519083969464,
+  "corr_fault_load": 0.039085366026149856,
   "corr_ci": [
-    -0.006205343136092079,
-    0.11538281484217286
+    -0.0276873867328556,
+    0.10588625171661956
   ],
-  "mean_orb_workload_ms": 2.5267281820609546,
-  "decirc_empirical_kappa": 0.6215277777777778,
-  "decirc_reduction_pp": 2.733333333333334,
-  "decirc_lo_pp": 1.6227552912542167,
-  "decirc_hi_pp": 3.8439113754124508,
-  "decirc_significant": true,
+  "mean_orb_workload_ms": 2.622317825812691,
+  "decirc_empirical_kappa": 0.48611111111111116,
+  "decirc_reduction_pp": 0.0,
+  "decirc_lo_pp": 0.0,
+  "decirc_hi_pp": 0.0,
+  "decirc_significant": false,
+  "decirc_per_seed_reduction_pp": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "decirc_p_two_sided": 1.0,
   "imposed_reduction_pp": 2.666666666666666,
-  "verdict": "REAL COUPLING PRESENT: a genuinely separate concurrent workload runs slower under real sensor faults, and the router still helps under a schedule driven by that real, independent load."
+  "verdict": "NO/WEAK REAL COUPLING: the independent concurrent workload's timing does not co-occur with sensor faults beyond chance in this data (report honestly)."
 }
