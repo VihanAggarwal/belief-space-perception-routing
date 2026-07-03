@@ -75,7 +75,12 @@ performs similarly to the noisy-OR (no statistically detectable
 difference), so the contribution is the coupling itself, not its
 functional form. Persistence-aware belief reduces
 config-switching for slow degradations but not fast-flickering rain,
-a fault-type-dependent effect. Experiments ran on Apple~M5 (Metal); the
+a fault-type-dependent effect. Directly testing the coupling
+assumption on eight real sequences, we find real compute load does
+not measurably co-occur with sensor faults in RADIATE (an honest
+null), and the routing benefit, though never negative across three
+independent traces per condition, does not yet reach
+trajectory-level significance. Experiments ran on Apple~M5 (Metal); the
 deadline self-calibrates per device, so the deadline-miss
 \emph{comparison}---not absolute latency---is the reported result.
 All code and outputs are released for reproducibility.%
@@ -785,7 +790,9 @@ soiling $[1.1,2.0]$\,pp. (Snow, non-significant under the
 conservative $n{=}5$ seed interval, becomes significant under
 temporal resampling; we retain the seed interval as primary.) This
 checks robustness to temporal structure within a sequence, not
-generalization across sequences, which remains future work.
+generalization across sequences; \S\ref{sec:rqcoupling} reports a
+separate cluster bootstrap over independent trajectories for rain
+and fog.
 
 Second, sweeping the deadline on fog (Table~\ref{tab:deadline})
 shows the benefit is operating-point dependent and peaks exactly
@@ -941,6 +948,99 @@ Track A all channels correctly report no sustained faults (balanced
 accuracy $\approx\!0.5$, zero detected segments), consistent with
 the $0.0\%$ fault fraction and the null RQ-H result.
 
+\subsubsection{RQ-Coupling: Is the Coupling Real, and Does It Generalize?}
+\label{sec:rqcoupling}
+
+The RQ-H result above is measured under an \emph{imposed}
+coupled/uncoupled contention schedule (\S\ref{sec:experiments}); two
+questions that design leaves open are directly testable. (a) Does
+compute load actually co-occur with sensor faults in
+un-manipulated data? (b) Does the routing benefit generalize across
+independent sequences of the same condition, not just seeds? We
+answer both on RADIATE, adding three previously unused sequences
+(\texttt{rain\_2\_0}, \texttt{rain\_3\_0}, \texttt{fog\_8\_0},
+\texttt{fog\_8\_1}) alongside the four committed ones.
+
+\textbf{(a) Measured coupling.} For each of the eight sequences we
+record real per-frame latency and YOLO detection count (a
+load proxy independent of the fault signals) and compute
+$P(\text{high load}\mid\text{fault})$ vs.\
+$P(\text{high load}\mid\text{nominal})$, then re-run RQ-H with the
+contention schedule driven by the measured proxy instead of the
+fault label (Table~\ref{tab:coupling}). Across every condition and
+both proxies the correlation confidence interval is centered near
+zero or of the wrong sign, and the de-circularized reduction
+collapses to $\approx\!0.0$\,pp---versus $+1.1$ to $+9.4$\,pp under
+the imposed schedule. This is an honest null: in this data, real
+compute load does not track sensor faults, so the coupled regime
+studied above is a scenario the imposed schedule
+\emph{constructs}, not one we find already present in RADIATE.
+
+\begin{table}[htbp]
+\caption{RQ-Coupling (a). Measured real fault--load coupling,
+detections and latency proxies pooled across sequences per
+condition. $r$ range is the correlation CI across both proxies and
+all sequences in the condition; de-circ.\ range is the resulting
+RQ-H reduction when contention is scheduled from the measured
+proxy (imposed-schedule reduction from Table~\ref{tab:rqh} for
+comparison).}
+\label{tab:coupling}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Cond.} & \textbf{$r$ range (both proxies)} &
+\textbf{De-circ.\ $\Delta$ (pp)} & \textbf{Imposed $\Delta$ (pp)} \\
+\midrule
+rain (3 seq) & $[-0.13, +0.20]$ & $0.00$ -- $+1.3$ & $+1.1$ -- $+2.7$ \\
+snow (1 seq) & $[-0.11, +0.08]$ & $0.00$            & $+2.8$           \\
+fog (3 seq)  & $[-0.10, +0.20]$ & $0.00$ -- $+0.5$  & $+4.5$ -- $+9.4$ \\
+night (1 seq)& $[-0.04, -0.01]$ & $0.00$            & $+5.9$           \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{(b) Cross-sequence generalization.} For rain and fog we now
+have three independent sequences each; Table~\ref{tab:multitrace}
+aggregates the per-sequence RQ-H reduction with both a
+cross-sequence $t$-interval and a cluster (resample-sequences)
+bootstrap. The per-sequence effect is positive in all six traces,
+and the cluster bootstrap stays entirely above zero for both
+conditions, but the more conservative $t$-interval includes zero for
+both (rain barely). With only three traces per condition we cannot
+claim the benefit generalizes across independent trajectories at
+trajectory-level significance, though the direction is consistent
+throughout.
+
+\begin{table}[htbp]
+\caption{RQ-Coupling (b). Cross-sequence RQ-H reduction (pp).
+Cluster CI resamples sequences (moving-block, $B{=}2000$); $t$-CI is
+the parametric interval over the $n{=}3$ per-sequence means.
+``Generalizes'' = $t$-CI excludes zero.}
+\label{tab:multitrace}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Cond.} & \textbf{Per-seq.\ $\Delta$ (pp)} &
+\textbf{Mean, $t$-CI (pp)} & \textbf{Generalizes} \\
+\midrule
+rain & $2.67,\ 1.76,\ 1.13$ & $1.85\ [-0.06, 3.77]$  & no \\
+fog  & $9.40,\ 4.53,\ 4.47$ & $6.13\ [-0.89, 13.16]$ & no \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Taken together, RQ-Coupling reframes rather than overturns the
+headline result: the joint policy still recovers the imposed
+coupling whenever it is present (RQ-H, exactly zero otherwise), and
+the routing benefit is never negative across eight real sequences,
+but neither the coupling itself nor its cross-trajectory
+generalization is yet confirmed as a property of un-manipulated
+RADIATE data at the sample sizes available here.
+
 % ---------------------------------------------------------------
 \section{Discussion}
 \label{sec:discussion}
@@ -988,8 +1088,13 @@ load with a two-state model; real embedded contention has richer
 structure. The sensor-to-compute coupling is regime-imposed in the
 coupled/uncoupled controls rather than measured from real
 co-occurrence---this is exactly what licenses the causal reading
-(the uncoupled arm is the falsification test), but a field study of
-naturally co-occurring fault and contention remains future work.
+(the uncoupled arm is the falsification test). We directly tested
+whether the coupling occurs naturally (\S\ref{sec:rqcoupling}) and
+found an honest null on RADIATE: real compute load (by two proxies)
+does not track sensor faults beyond chance in any of eight
+sequences. A field study on hardware with genuine embedded
+contention (rather than a Mac-measured load proxy) remains future
+work, as does testing conditions beyond RADIATE weather.
 The pseudo-GT (agreement-with-reference) is blind to systematic C1
 errors, and the per-channel fault labels used to fit the sensor HMM
 are derived from the same health signals the belief then filters, so
@@ -1005,10 +1110,15 @@ identical frames and vary only injected sensor-measurement noise, so
 the reported CIs measure sensitivity to that noise---not
 generalization across sequences, vehicles, or contention traces. A
 within-sequence temporal-block bootstrap (\S\ref{sec:experiments})
-confirms robustness to temporal resampling, but honest
-cross-environment intervals still require bootstrap over independent
-trajectories (future work), and the modest $n{=}5$ is why snow is
-under-powered under the primary seed interval. Absolute latencies are
+confirms robustness to temporal resampling, and we additionally
+bootstrapped over three independent trajectories per condition for
+rain and fog (\S\ref{sec:rqcoupling}, Table~\ref{tab:multitrace}):
+the effect is directionally consistent but does not clear the
+trajectory-level $t$-interval at $n{=}3$, so honest cross-environment
+significance still requires more independent sequences than we had
+available; the modest within-condition $n{=}5$ seeds is separately
+why snow is under-powered under the primary seed interval. Absolute
+latencies are
 dev-environment (Apple~M5/MPS) and are not reported as headline
 numbers.
 
@@ -1027,15 +1137,20 @@ $(b_f, b_c)$, and an oracle that knows the coupling schedule, would
 bound how much a learned fusion could add. \emph{(iii) Generalization and realism.} The
 remaining sensitivity axes (contention intensity, fault--contention
 delay, HMM window/transition parameters) should be swept as we did
-for deadline and $\kappa$; and---most importantly---more independent
-sequences with bootstrap over trajectories (beyond the
-within-sequence temporal-block bootstrap already reported) for
-cross-environment CIs, reportable datacenter-GPU latencies, real
-embedded contention on a Jetson to replace the regime-imposed
-coupling with measured co-occurrence, real RADIATE detection
-annotations instead of pseudo-GT, and a closed-loop downstream-task
-evaluation (e.g.\ MuJoCo navigation with rendered fault injection)
-measuring task success rather than detector agreement.
+for deadline and $\kappa$. We took a first step at cross-trajectory
+generalization and measured real coupling
+(\S\ref{sec:rqcoupling}: three sequences per condition, two load
+proxies), and both came back honest nulls on RADIATE---compute load
+does not naturally track sensor faults in this data, and $n{=}3$
+traces is not enough to confirm trajectory-level generalization.
+The natural next steps are therefore more independent sequences per
+condition to sharpen the cross-sequence CI, real embedded contention
+on a Jetson (rather than a Mac-measured load proxy) to test for
+coupling on hardware where it may plausibly arise, reportable
+datacenter-GPU latencies, real RADIATE detection annotations instead
+of pseudo-GT, and a closed-loop downstream-task evaluation (e.g.\
+MuJoCo navigation with rendered fault injection) measuring task
+success rather than detector agreement.
 
 % ---------------------------------------------------------------
 \section{Conclusion}
@@ -1058,10 +1173,17 @@ condition-level results suggest the benefit may track
 deadline-binding severity more than frequency; and persistence-aware
 belief helps on slow degradations but hurts on fast-flickering
 rain---a fault-type-dependent finding reported without
-qualification. The
+qualification. Directly testing the coupling assumption itself on
+eight real sequences, we find real compute load does not measurably
+track sensor faults in RADIATE, and the routing benefit, while never
+negative across three independent traces per condition, does not yet
+clear a trajectory-level significance bar---honest nulls we report
+rather than paper over. The
 work establishes coupled belief-space modeling of fault and
-contention as a tractable, measurable research direction, and
-releases a fully reproducible pipeline.
+contention as a tractable, measurable research direction with a
+clearly scoped remaining question---whether the coupling occurs
+naturally rather than by construction---and releases a fully
+reproducible pipeline.
 
 % ---------------------------------------------------------------
 \bibliographystyle{IEEEtran}
