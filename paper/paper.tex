@@ -62,27 +62,38 @@ TartanDrive (off-road, rectilinear), RADIATE (adverse weather---
 rain, snow, fog, night---rectilinear stereo), and WoodScape
 Soiling (lens contamination, fisheye), plus controlled injection
 for tracker validation, with five seeds and 95\% confidence
-intervals. The joint policy reduces deadline-miss rate by
-$1.1$--$9.4$ percentage points wherever fault--contention coupling
-is real, statistically significant in five of six coupled
-conditions (a high-degradation off-road segment, rain, fog, night,
-soiling; e.g.\ fog $+9.4$\,pp, 95\% CI $[7.1, 11.7]$; off-road
-$+3.0$\,pp), while \emph{every} uncoupled control yields exactly
-$0.0$\,pp---isolating the coupling, within this imposed regime, as
-the driver of the gain; on the fault-free full off-road trajectory
-the method is correctly inert ($0.0$\,pp). A simple belief threshold
-performs similarly to the noisy-OR (no statistically detectable
-difference), so the contribution is the coupling itself, not its
-functional form. Persistence-aware belief reduces
-config-switching for slow degradations but not fast-flickering rain,
-a fault-type-dependent effect. Directly testing the coupling
-assumption on eight real sequences, we find real compute load does
-not measurably co-occur with sensor faults in RADIATE (an honest
-null), and the routing benefit, though never negative across three
-independent traces per condition, does not yet reach
-trajectory-level significance. Experiments ran on Apple~M5 (Metal); the
-deadline self-calibrates per device, so the deadline-miss
-\emph{comparison}---not absolute latency---is the reported result.
+intervals. This is a \textbf{proof of mechanism under a controlled,
+imposed coupling regime}, not a claim that such coupling is
+typical in the field: the joint policy reduces deadline-miss rate by
+$1.1$--$9.4$ percentage points wherever the (here imposed)
+fault--contention coupling is present, significant over seeds in
+five of six coupled conditions (a high-degradation off-road segment,
+rain, fog, night, soiling; e.g.\ fog $+9.4$\,pp, 95\% CI $[7.1,
+11.7]$; off-road $+3.0$\,pp), while \emph{every} uncoupled control
+yields exactly $0.0$\,pp---isolating the coupling, within this
+imposed regime, as the driver of the gain; on the fault-free full
+off-road trajectory the method is correctly inert ($0.0$\,pp). A
+simple belief threshold performs similarly to the noisy-OR (no
+detectable difference), so the contribution is the coupling itself,
+not its functional form. An oracle with perfect (not belief-estimated)
+contention knowledge gains little or nothing over the joint policy
+under the same decision rule, and a naive latency-only reactive
+baseline that ignores sensor state entirely trades accuracy for a
+lower miss rate rather than dominating the joint policy. Persistence-aware
+belief reduces config-switching for slow degradations but not
+fast-flickering rain, a fault-type-dependent effect. Directly testing
+the coupling assumption -- including with a workload genuinely
+independent of the detector -- on eight real sequences, we find real
+compute load does not measurably co-occur with sensor faults in
+RADIATE in seven of eight (an honest null), the fitted coupling
+coefficient nonetheless transfers cleanly across sequences, the
+routing benefit is never negative across three independent traces
+per condition though it does not yet reach trajectory-level
+significance, and the pseudo-ground-truth accuracy axis used
+throughout is only weakly validated against real RADIATE annotations
+on one dataset. Experiments ran on Apple~M5 (Metal); the deadline
+self-calibrates per device, so the deadline-miss \emph{comparison}---not
+absolute latency---is the reported result.
 All code and outputs are released for reproducibility.%
 \footnote{Repository: \url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
 \end{abstract}
@@ -172,8 +183,11 @@ report without qualification.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig_rqh_summary.png}
-  \caption{Headline result (RQ-H). Reduction in deadline-miss rate
-  of the joint policy over the decoupled baseline, by condition,
+  \caption{Headline result -- does modeling the fault--contention
+  coupling reduce deadline-miss rate versus a decoupled baseline?
+  (we label this comparison RQ-H throughout). Reduction in
+  deadline-miss rate of the joint policy over the decoupled
+  baseline, by condition,
   with 95\% CIs over five seeds. Filled circles: coupled regime,
   CI excludes zero. Square: coupled but not significant (snow).
   Grey crosses: the matched uncoupled control, exactly $0.0$\,pp in
@@ -455,13 +469,36 @@ deadline-miss, and is evaluated separately against an oracle.
   \item \textbf{Hysteresis (model-derived)}: dwell time set from
     the HMM's expected false-transition rate.
   \item \textbf{Hysteresis (fixed)}: hand-tuned dwell time.
-  \item \textbf{Oracle}: routes with ground-truth fault and
-    compute state.
+  \item \textbf{Oracle (abstention labeler)}: post hoc ground-truth
+    label of whether ANY config could have met both the deadline and
+    an accuracy floor that frame, used only to score abstention
+    precision/recall (\S\ref{sec:experiments}), not as a routing
+    policy.
+  \item \textbf{Oracle Contention Router}: a distinct baseline
+    (\S\ref{sec:rqbaselines}) that routes with the TRUE contention
+    state each frame instead of the compute belief, bounding how
+    much perfect compute-state knowledge (not better coupling
+    modeling) could gain.
+  \item \textbf{Reactive-Latency}: a naive baseline
+    (\S\ref{sec:rqbaselines}) that reacts only to the observed
+    latency trend, with no sensor-fault information at all.
 \end{itemize}
 
 % ---------------------------------------------------------------
 \section{Experimental Setup}
 \label{sec:experiments}
+
+We organize the results around four labeled questions, used as
+section labels throughout: \textbf{RQ-H} (Headline) -- does modeling
+the fault--contention coupling reduce deadline-miss rate versus a
+fair decoupled baseline (Fig.~\ref{fig:summary})? \textbf{RQ-A1}
+(persistence) -- does persistence-aware belief improve fault
+detection and reduce config-switching over a memoryless detector?
+\textbf{RQ-A2} (dwell) -- does a model-derived hysteresis dwell time
+match hand-tuning under non-stationary fault arrival? \textbf{RQ-Coupling}
+-- is the fault--contention coupling assumed by RQ-H actually present
+in un-manipulated data, and does the routing benefit generalize
+across independent sequences (\S\ref{sec:rqcoupling})?
 
 \subsection{Dataset Tracks}
 
@@ -540,6 +577,21 @@ environment-agnostic. Configuration is fully driven by
 comparisons use 5 seeds with 95\% $t$-interval CIs and paired
 difference tests; per-seed sensor measurement noise is the source
 of seed variance (the real frames are identical across seeds).
+\textbf{On the word ``significant'':} unless stated otherwise, it
+means the 95\% paired-difference $t$-interval over these 5 SEED
+draws excludes zero -- a small-sample interval over resampled
+measurement noise on one fixed real trajectory, not a claim about
+a population of trajectories. Where a different resampling unit is
+used, we say so explicitly: ``significant under temporal
+(block-bootstrap) resampling'' means the interval is over resampled
+50-frame blocks WITHIN one trace (\S\ref{sec:experiments}
+robustness); ``significant under cluster (sequence) resampling'' or
+``generalizes'' means the interval is over resampled INDEPENDENT
+SEQUENCES (\S\ref{sec:rqcoupling}, $n{=}3$ traces per condition).
+These are three different units and are not interchangeable
+evidence of generalization -- only the cross-sequence unit speaks
+to whether an effect holds across independent trajectories, and at
+$n{=}3$ traces it is the weakest-powered of the three.
 
 \subsection{Results}
 
@@ -679,30 +731,34 @@ primary metric because a late detection is unusable downstream.
 
 \subsubsection{Deadline-Aware Utility}
 
-Because deadline-miss rate alone can reward aggressive downshifting,
-we also report a per-frame combined metric that charges for the
-accuracy sacrifice: on-time utility
-$U = \frac{1}{T}\sum_{t} a_t \,\mathbf{1}[\ell_t \le D]$, the mean
-task accuracy of frames that meet the deadline (a late frame scores
-zero). Unlike $\bar{a}(1{-}m)$, this preserves the per-frame link
-between the chosen config's accuracy and its latency.
-Table~\ref{tab:utility} shows the joint policy's point estimate of
-$U$ is nonnegative in all six conditions, significantly positive for
-off-road, rain, and night (paired CIs exclude zero); the snow, fog,
-and soiling gains are small and not statistically distinguishable
-from zero. Fog is effectively break-even ($+0.07$\,pp), the
-timeliness gain and accuracy cost cancelling in expected on-time
-accuracy even though the deadline-miss reduction stays large. No
-point estimate is negative, so coupling does not lower on-time
-utility in any tested condition, and the deadline-miss reduction is
-an additional benefit where late results are unusable.
+Deadline-miss rate alone can reward aggressive downshifting (a
+policy that always picks the cheapest config never misses, but is
+useless on accuracy), so we also report a single combined metric
+that penalizes both failure modes in the same number: per-frame
+expected utility $U = \frac{1}{T}\sum_{t} a_t \,\mathbf{1}[\ell_t \le
+D]$, i.e.\ the frame's accuracy if served on time and zero if late,
+averaged over \emph{all} $T$ frames (not just the on-time ones --
+$U$ is an expectation over the whole trace, so a policy that
+improves timeliness at the expense of accuracy, or vice versa, is
+not automatically rewarded). Table~\ref{tab:utility} shows the joint
+policy's point estimate of $U$ is nonnegative in all six conditions,
+significantly higher than the decoupled baseline for off-road, rain,
+and night (paired CIs exclude zero); the snow, fog, and soiling
+differences are small and not distinguishable from zero at $n=5$
+seeds. Fog is effectively break-even ($+0.07$\,pp): the large
+deadline-miss reduction there is offset by a matching accuracy cost
+in expectation, illustrating exactly why $U$ and deadline-miss can
+disagree and both are worth reporting. No point estimate is
+negative, so coupling never lowers this combined metric in any
+tested condition.
 
 \begin{table}[htbp]
-\caption{Per-frame on-time utility
-$U=\frac{1}{T}\sum_t a_t\mathbf{1}[\ell_t\le D]$ (mean accuracy over
-frames meeting the deadline; a late frame scores zero). $\Delta U$
-(joint $-$ decoupled, pp) with paired 95\% CI; $^\ast$ excludes
-zero. All point estimates are nonnegative.}
+\caption{Per-frame expected utility
+$U=\frac{1}{T}\sum_t a_t\mathbf{1}[\ell_t\le D]$, averaged over ALL
+$T$ frames (a late frame contributes zero, not excluded) -- a single
+number that penalizes both missing the deadline and sacrificing
+accuracy. $\Delta U$ (joint $-$ decoupled, pp) with paired 95\% CI;
+$^\ast$ excludes zero. All point estimates are nonnegative.}
 \label{tab:utility}
 \centering
 \small
@@ -777,6 +833,77 @@ soiling & 0.271 & 0.255 & 0.256 & $-0.1\ [-0.1,0.0]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsubsection{RQ-Baselines: Oracle Contention and Reactive Latency}
+\label{sec:rqbaselines}
+
+Two further baselines bound the joint policy from opposite directions.
+\textbf{Oracle Contention Router} replaces the compute BELIEF with
+the TRUE contention state every frame (still using the sensor belief
+for accuracy weighting, same objective as Joint/Decoupled), bounding
+how much perfect compute-state knowledge -- rather than better
+coupling modeling -- could gain. \textbf{Reactive-Latency} is a
+naive, deployable baseline that reacts only to the observed latency
+trend and carries NO sensor-fault information at all, not even for
+accuracy weighting; it tests whether plain latency reactivity already
+captures the benefit. Table~\ref{tab:baselines} runs both alongside
+Joint/Decoupled on the same seven tracks.
+
+The joint policy's miss rate is statistically indistinguishable from,
+or in three conditions (full off-road, fog, one comparison n.s.)
+numerically \emph{better than}, the oracle's. This is not evidence
+the belief is more accurate than ground truth: feasibility is defined
+at the median-latency threshold ($P(\text{meet}){\ge}0.5$), so both
+oracle and joint may select a max-accuracy config whose realized
+latency exceeds the deadline up to half the time by design; the
+oracle's perfect STATE knowledge does not tighten that per-policy
+threshold. The joint-oracle gap is small or reversed in most
+conditions, meaning little of the remaining miss rate is headroom
+recoverable by a better contention estimator under this decision
+rule. Reactive-Latency has a LOWER miss rate than Joint in three
+conditions (full off-road, fog, and, non-significantly, several
+others) but this comes at an accuracy cost (it can never upweight
+accuracy under a real fault, since it has no fault information): the
+combined on-time-utility metric $U$ (\S\ref{sec:experiments}, defined
+below) is lower for Reactive-Latency than Joint in five of seven
+conditions, significantly on the full off-road trajectory and fog.
+Miss rate alone therefore favors the naive baseline exactly where it
+sacrifices the accuracy the coupling is meant to protect; $U$ is the
+metric that separates the two.
+
+\begin{table*}[htbp]
+\caption{RQ-Baselines. Deadline-miss rate (\%) for five policies on
+the same draws. $\Delta$(Jnt$-$Orc) is the joint-oracle gap (pp,
+95\% CI); $\Delta U$(Jnt$-$Rct) is the joint-minus-reactive gap in
+on-time utility $U$ (pp, 95\% CI); $^\ast$ excludes zero.}
+\label{tab:baselines}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Cond.} & \textbf{Orc} & \textbf{Jnt} & \textbf{Dec} &
+\textbf{Rct} & \textbf{$\Delta$(Jnt$-$Orc)} & \textbf{$\Delta U$(Jnt$-$Rct)} \\
+\midrule
+A (full)   & 36.5 & 36.5 & 36.5 & 24.7 & $-0.1\ [-0.3,0.1]$      & $-4.8\ [-9.9,0.3]$ \\
+A-seg      & 36.6 & 24.9 & 27.9 & 27.3 & $-11.7\ [-15.2,-8.2]^\ast$ & $+2.0\ [-0.6,4.6]$ \\
+rain       & 33.7 & 23.3 & 24.4 & 27.1 & $-10.5\ [-16.3,-4.6]^\ast$ & $+2.6\ [-2.7,7.9]$ \\
+snow       & 36.9 & 31.3 & 34.1 & 27.9 & $-5.6\ [-10.0,-1.2]^\ast$  & $-1.5\ [-5.4,2.5]$ \\
+fog        & 37.0 & 32.9 & 42.3 & 25.3 & $-4.1\ [-10.0,1.7]$        & $-5.6\ [-10.6,-0.5]^\ast$ \\
+night      & 37.6 & 31.3 & 37.1 & 26.0 & $-6.3\ [-10.7,-2.0]^\ast$  & $-4.7\ [-10.7,1.2]$ \\
+soiling    & 36.4 & 25.6 & 27.1 & 26.3 & $-10.9\ [-12.0,-9.7]^\ast$ & $-0.3\ [-0.7,0.2]$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textbf{Routing overhead.} The router's own cost -- HMM belief
+filtering across all channels plus noisy-OR fusion and config
+selection, on CPU -- is negligible next to inference: a batch-fit
+upper bound of $19$-$32\,\mu$s/frame ($0.005$-$0.015\%$ of the
+reference config's median latency) and, for the steady-state decision
+step alone given already-tracked beliefs, $0.1$-$1.2\,\mu$s/frame
+($\le 0.0004\%$), consistent across all seven tracks. Routing cost is
+not a factor in any reported deadline-miss number.
 
 \subsubsection{Robustness: Bootstrap, Deadline, and Coupling Strength}
 
@@ -873,12 +1000,12 @@ configs---so the effect is not an artifact of a coarse config set.
 
 Table~\ref{tab:rqa1} compares the HMM belief detector to a
 memoryless per-frame threshold; Fig.~\ref{fig:rqa1} shows the
-night track, where belief clears the full gate. The belief
-detector improves fault-detection \emph{balanced accuracy} in
-every track with faults ($+3$ to $+8$ points), and reduces
-config-switching significantly in three of five conditions (fog,
-night, soiling), clearing the full pre-specified gate---lower
-switching at matched or better accuracy---on the night track. It
+night track, where belief meets the full pre-specified criterion.
+The belief detector improves fault-detection \emph{balanced
+accuracy} in every track with faults ($+3$ to $+8$ points), and
+reduces config-switching significantly in three of five conditions
+(fog, night, soiling), meeting the full pre-specified criterion
+(lower switching at matched or better accuracy) on the night track. It
 \emph{increases} switching only on rain, where droplet occlusion is
 a fast flicker that HMM smoothing over-interprets as sustained
 degradation, crossing the decision boundary more often than the
@@ -888,7 +1015,7 @@ instantaneous signal. Snow is under-powered (CI includes zero).
 \caption{RQ-A1. Config-switching rate, belief vs.\ memoryless, and
 detection balanced accuracy. $\Delta = $ memoryless $-$ belief
 (positive $=$ belief switches \emph{less}, i.e.\ better);
-$^\ast$ = CI excludes zero. ``Gate'' = passes the pre-specified
+$^\ast$ = CI excludes zero. ``Criterion'' = passes the pre-specified
 test (lower switching at non-inferior accuracy).}
 \label{tab:rqa1}
 \centering
@@ -898,7 +1025,7 @@ test (lower switching at non-inferior accuracy).}
 \toprule
 \textbf{Track} & \textbf{Belief} & \textbf{Mem.} &
 \textbf{$\Delta$} & \textbf{bAcc$_{\text{bel}}$} &
-\textbf{bAcc$_{\text{mem}}$} & \textbf{Gate} \\
+\textbf{bAcc$_{\text{mem}}$} & \textbf{Criterion} \\
 \midrule
 D rain   & 0.020 & 0.010 & $-0.010^\ast$ & 0.884 & 0.854 & no \\
 D snow   & 0.043 & 0.031 & $-0.012$      & 0.859 & 0.821 & no \\
@@ -914,8 +1041,8 @@ C soil   & 0.020 & 0.052 & $+0.031^\ast$ & 0.862 & 0.808 & no \\
   \includegraphics[width=\columnwidth]{fig_rqa1_night.png}
   \caption{RQ-A1 (RADIATE night). The persistence-aware belief
   detector reduces config-switching relative to the memoryless
-  baseline at higher balanced accuracy, clearing the full
-  pre-specified gate on this track.}
+  baseline at higher balanced accuracy, meeting the full
+  pre-specified criterion on this track.}
   \label{fig:rqa1}
 \end{figure}
 
@@ -986,17 +1113,17 @@ proxy (imposed-schedule reduction from Table~\ref{tab:rqh} for
 comparison).}
 \label{tab:coupling}
 \centering
-\small
-\setlength{\tabcolsep}{4pt}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Cond.} & \textbf{$r$ range (both proxies)} &
-\textbf{De-circ.\ $\Delta$ (pp)} & \textbf{Imposed $\Delta$ (pp)} \\
+\textbf{Cond.} & \textbf{$r$ range} &
+\textbf{De-circ.\ (pp)} & \textbf{Imposed (pp)} \\
 \midrule
-rain (3 seq) & $[-0.13, +0.20]$ & $0.00$ -- $+1.3$ & $+1.1$ -- $+2.7$ \\
-snow (1 seq) & $[-0.11, +0.08]$ & $0.00$            & $+2.8$           \\
-fog (3 seq)  & $[-0.10, +0.20]$ & $0.00$ -- $+0.5$  & $+4.5$ -- $+9.4$ \\
-night (1 seq)& $[-0.04, -0.01]$ & $0.00$            & $+5.9$           \\
+rain (3 seq) & $[-0.13,+0.20]$ & $0.0$--$1.3$ & $1.1$--$2.7$ \\
+snow (1 seq) & $[-0.11,+0.08]$ & $0.0$         & $2.8$         \\
+fog (3 seq)  & $[-0.10,+0.20]$ & $0.0$--$0.5$  & $4.5$--$9.4$ \\
+night (1 seq)& $[-0.04,-0.01]$ & $0.0$         & $5.9$         \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1033,13 +1160,102 @@ fog  & $9.40,\ 4.53,\ 4.47$ & $6.13\ [-0.89, 13.16]$ & no \\
 \end{tabular}
 \end{table}
 
+\textbf{(c) Cross-sequence calibration transfer.} Parts (a)-(b) fit
+$\kappa$ on calibration draws or halves of the SAME trace being
+tested. We additionally fit $\kappa$ entirely on a DIFFERENT
+sequence of the same condition and re-run RQ-H on the test sequence
+with that transplanted value (Table~\ref{tab:xseqcal}). $\kappa$
+transfers cleanly -- the transferred value differs from the native
+fit by at most $0.03$, and the resulting RQ-H reduction is within
+$0.07$\,pp of the native-$\kappa$ result in every pair, still
+significant (over seeds, on the single test sequence) in all four.
+Under the imposed-coupling regime studied
+here, $\kappa$ behaves as a stable structural property of the regime
+rather than something overfit to one trajectory.
+
+\begin{table}[htbp]
+\caption{RQ-Coupling (c). RQ-H reduction (pp) on a test sequence
+using its own natively-fit $\kappa$ vs.\ $\kappa$ fit entirely on a
+DIFFERENT sequence of the same condition.}
+\label{tab:xseqcal}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Test seq.} & \textbf{$\kappa$ from} & \textbf{$\kappa$ native/xfer} &
+\textbf{$\Delta$ native (pp)} & \textbf{$\Delta$ xfer (pp)} \\
+\midrule
+rain\_4\_0 & rain\_2\_0 & $0.798/0.765$ & $1.13^\ast$ & $1.13^\ast$ \\
+rain\_3\_0 & rain\_4\_0 & $0.790/0.797$ & $1.76^\ast$ & $1.76^\ast$ \\
+fog\_6\_0  & fog\_8\_0  & $0.795/0.777$ & $9.40^\ast$ & $9.33^\ast$ \\
+fog\_6\_0  & fog\_8\_1  & $0.795/0.781$ & $9.40^\ast$ & $9.33^\ast$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{(d) A genuinely independent concurrent workload.} Parts
+(a)-(c) still use load proxies derived from the SAME detector whose
+contention we predict (its own latency or detection count), so a
+skeptic could ask whether the "coupling" is autocorrelation in one
+model's runtime. We ran a real, CPU-bound, GENUINELY SEPARATE
+workload -- ORB keypoint detection plus frame-to-frame descriptor
+matching, timed for real, of the kind a concurrent
+tracking/mapping/SLAM thread would perform -- entirely independent
+of the detector, the fault-labeling channels, and any fault label,
+on all eight sequences. Seven of eight are again honest nulls, but
+one (RADIATE rain\_2\_0) shows the independent workload running
+measurably slower under real sensor faults ($P_c(\text{fault}){=}0.268$
+vs.\ $P_c(\text{nominal}){=}0.247$) with a de-circularized RQ-H
+reduction significant over the 5 seeds on that one sequence
+($+2.73$\,pp, 95\% CI $[1.62,3.84]$, close to the
+$+2.67$\,pp imposed-schedule value for that sequence). We report this
+as found rather than average it away: at $n{=}8$ sequences one
+positive case is not evidence the coupling is typically present, but
+it demonstrates the mechanism can arise from a real, independent
+concurrent workload, not only from the imposed schedule.
+
+\textbf{(e) Real annotations vs.\ pseudo-GT.} Every accuracy number
+elsewhere in this paper is agreement-with-C1 (pseudo-GT), not
+independent ground truth. We projected RADIATE's real radar-derived
+object annotations onto the rectified camera image (replicating the
+RADIATE SDK's radar-to-camera projection) for RADIATE rain and
+computed real, class-agnostic (RADIATE only annotates vehicles)
+detection F1 against them for all four configs, on 500 frames. Real-GT
+F1 is far lower and far flatter across configs ($0.193$-$0.220$) than
+pseudo-GT F1 ($0.733$-$1.000$), the config accuracy ranking does not
+match ($\{$C2,C1,C4,C3$\}$ vs.\ $\{$C1,C2,C3,C4$\}$), and per-frame
+correlation between pseudo- and real-GT F1 is weak and sign-mixed
+across configs ($r{=}{-}0.07$ to $+0.18$). Some of the absolute gap
+is expected -- projected radar boxes are coarser 3D-extruded
+footprints, not tight image annotations, so real-GT IoU is a harder
+bar -- but the ranking mismatch and weak correlation are a genuine
+limitation of the pseudo-GT accuracy axis used throughout the paper:
+it validates as an internal consistency check (a config's agreement
+with C1), not as a proxy for absolute or even relative real-world
+accuracy. We report this plainly rather than only where it is
+flattering; a full re-profiling of the RQ-H substrate on real-GT
+accuracy remains future work.
+
 Taken together, RQ-Coupling reframes rather than overturns the
 headline result: the joint policy still recovers the imposed
-coupling whenever it is present (RQ-H, exactly zero otherwise), and
-the routing benefit is never negative across eight real sequences,
-but neither the coupling itself nor its cross-trajectory
-generalization is yet confirmed as a property of un-manipulated
-RADIATE data at the sample sizes available here.
+coupling whenever it is present (RQ-H, exactly zero otherwise), the
+routing benefit is never negative across eight real sequences and
+two independently-timed load proxies, and the fitted coupling
+coefficient transfers cleanly across sequences of the same
+condition. But neither the coupling itself (present in one of eight
+sequences under a genuinely independent workload) nor its
+cross-trajectory generalization (directionally consistent, not
+$t$-significant at $n{=}3$) is confirmed as a property of
+un-manipulated RADIATE data at the sample sizes available here, and
+the accuracy axis the whole benefit is measured against is itself
+only weakly validated against real annotations (part e). RQ-H is
+therefore best read as a proof of mechanism under a controlled,
+imposed coupling regime -- a clean demonstration that a router
+exploiting fault--contention coupling beats one that cannot, when
+the coupling exists -- and not yet as evidence that such coupling, or
+the accuracy differences it is scored against, commonly arise in
+unmanipulated field data.
 
 % ---------------------------------------------------------------
 \section{Discussion}
@@ -1074,8 +1290,8 @@ specific fusion form.
 
 Persistence-aware belief uniformly improves detection balanced
 accuracy and reduces config-switching for slow, sustained
-degradations (fog, night, soiling), passing the full pre-specified
-gate on night. It hurts only on rain, where high-frequency droplet
+degradations (fog, night, soiling), meeting the full pre-specified
+criterion on night. It hurts only on rain, where high-frequency droplet
 occlusion defeats the slow-onset assumption baked into the HMM
 smoothing. Rather than a blanket negative, this argues for matching
 the smoothing time-constant to the fault's temporal scale.
@@ -1089,12 +1305,16 @@ structure. The sensor-to-compute coupling is regime-imposed in the
 coupled/uncoupled controls rather than measured from real
 co-occurrence---this is exactly what licenses the causal reading
 (the uncoupled arm is the falsification test). We directly tested
-whether the coupling occurs naturally (\S\ref{sec:rqcoupling}) and
-found an honest null on RADIATE: real compute load (by two proxies)
-does not track sensor faults beyond chance in any of eight
-sequences. A field study on hardware with genuine embedded
-contention (rather than a Mac-measured load proxy) remains future
-work, as does testing conditions beyond RADIATE weather.
+whether the coupling occurs naturally (\S\ref{sec:rqcoupling}) with
+three independent load proxies -- the detector's own detection count
+and latency, plus a genuinely separate concurrent ORB tracking
+workload -- and found a mostly honest null on RADIATE: real load
+does not track sensor faults beyond chance in seven of eight
+sequences under all three proxies, with one exception (RADIATE
+rain\_2\_0 under the independent workload) where it does. A field
+study on hardware with genuine embedded contention (rather than a
+Mac-measured load proxy) remains future work, as does testing
+conditions beyond RADIATE weather.
 The pseudo-GT (agreement-with-reference) is blind to systematic C1
 errors, and the per-channel fault labels used to fit the sensor HMM
 are derived from the same health signals the belief then filters, so
@@ -1138,17 +1358,25 @@ bound how much a learned fusion could add. \emph{(iii) Generalization and realis
 remaining sensitivity axes (contention intensity, fault--contention
 delay, HMM window/transition parameters) should be swept as we did
 for deadline and $\kappa$. We took a first step at cross-trajectory
-generalization and measured real coupling
-(\S\ref{sec:rqcoupling}: three sequences per condition, two load
-proxies), and both came back honest nulls on RADIATE---compute load
-does not naturally track sensor faults in this data, and $n{=}3$
-traces is not enough to confirm trajectory-level generalization.
-The natural next steps are therefore more independent sequences per
-condition to sharpen the cross-sequence CI, real embedded contention
-on a Jetson (rather than a Mac-measured load proxy) to test for
-coupling on hardware where it may plausibly arise, reportable
-datacenter-GPU latencies, real RADIATE detection annotations instead
-of pseudo-GT, and a closed-loop downstream-task evaluation (e.g.\
+generalization, measured real coupling with three independent load
+proxies (including a genuinely separate concurrent workload), tested
+whether $\kappa$ transfers across sequences, and validated the
+pseudo-GT accuracy axis against real RADIATE annotations
+(\S\ref{sec:rqcoupling}: three sequences per condition). Results were
+mixed rather than uniformly null: $\kappa$ transfers cleanly across
+sequences and one sequence shows real coupling under the independent
+workload, but compute load mostly does not track sensor faults in
+this data, $n{=}3$ traces is not enough to confirm trajectory-level
+generalization, and real-GT validation exposed real weaknesses in
+the pseudo-GT accuracy axis (\S\ref{sec:rqcoupling}, part e). The
+natural next steps are therefore more independent sequences per
+condition to sharpen the cross-sequence CI and better power the
+real-coupling test, real embedded contention on a Jetson (rather
+than a Mac-measured load proxy) to test for coupling on hardware
+where it may plausibly arise, reportable datacenter-GPU latencies, a
+full re-profiling of the RQ-H substrate on real RADIATE detection
+annotations (beyond the validation study reported here) on more than
+one dataset, and a closed-loop downstream-task evaluation (e.g.\
 MuJoCo navigation with rendered fault injection) measuring task
 success rather than detector agreement.
 
@@ -1163,26 +1391,36 @@ rate versus a fair decoupled baseline. Evaluated across three real datasets
 spanning two camera geometries---off-road (TartanDrive), adverse
 weather (RADIATE rain/snow/fog/night), and fisheye lens soiling
 (WoodScape)---with five seeds and 95\% CIs, the joint policy
-reduces deadline-miss rate by $1.1$--$9.4$\,pp wherever
-fault--contention coupling is real, significantly in five of six
-coupled conditions, while every uncoupled control and the
-fault-free trajectory produce exactly zero improvement. A simple
-belief-threshold rule performs comparably on RQ-H, locating the
-contribution in the coupling rather than its functional form; the
+reduces deadline-miss rate by $1.1$--$9.4$\,pp wherever the (here
+imposed) fault--contention coupling is present, significant over
+seeds in five of six coupled conditions, while every uncoupled
+control and the fault-free trajectory produce exactly zero
+improvement. A simple belief-threshold rule performs comparably on
+RQ-H, locating the contribution in the coupling rather than its
+functional form; an oracle with perfect contention-state knowledge
+gains little over the belief-based joint policy under the same
+decision rule, and a naive latency-only reactive baseline trades
+accuracy for a lower miss rate rather than dominating it; the
 condition-level results suggest the benefit may track
 deadline-binding severity more than frequency; and persistence-aware
 belief helps on slow degradations but hurts on fast-flickering
 rain---a fault-type-dependent finding reported without
-qualification. Directly testing the coupling assumption itself on
+qualification. Directly testing the coupling assumption itself,
+including with a workload genuinely independent of the detector, on
 eight real sequences, we find real compute load does not measurably
-track sensor faults in RADIATE, and the routing benefit, while never
-negative across three independent traces per condition, does not yet
-clear a trajectory-level significance bar---honest nulls we report
-rather than paper over. The
+track sensor faults in RADIATE in seven of eight (an honest null),
+the fitted coupling coefficient nonetheless transfers cleanly across
+sequences of the same condition, the routing benefit is never
+negative across three independent traces per condition though it
+does not yet clear a trajectory-level significance bar, and the
+pseudo-ground-truth accuracy axis used throughout is only weakly
+validated against real RADIATE annotations on one dataset---honest
+nulls and limitations we report rather than paper over. The
 work establishes coupled belief-space modeling of fault and
 contention as a tractable, measurable research direction with a
-clearly scoped remaining question---whether the coupling occurs
-naturally rather than by construction---and releases a fully
+clearly scoped remaining question---whether the coupling, and the
+accuracy differences it is scored against, occur naturally rather
+than only by construction---and releases a fully
 reproducible pipeline.
 
 % ---------------------------------------------------------------
