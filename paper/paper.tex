@@ -112,7 +112,7 @@ and controlled injection, with five seeds and 95\% $t$-interval CIs,
 reporting null findings plainly; and (iv) directly interrogates the
 coupling assumption itself with five checks -- measured coupling via
 three independent load proxies under a multiple-testing correction,
-cross-sequence $\kappa$ transfer, cross-trajectory generalization, an
+cross-sequence transfer of the full belief model (HMM and $\kappa$), an
 oracle/reactive-baseline bound, and a real-GT accuracy-axis
 validation -- rather than only exhibiting the mechanism under a
 constructed regime. We release a fully reproducible, config-driven
@@ -563,11 +563,17 @@ the cross-sequence $t$-interval includes zero for both -- reported as
 \emph{directionally consistent across tested sequences}, not as
 generalizing.
 
-\textbf{(c) Cross-sequence $\kappa$ transfer.} Fitting $\kappa$
-entirely on a \emph{different} sequence and transplanting it changes
-the RQ-H reduction by at most $0.07$\,pp in four tested pairs, still
-significant in all four: $\kappa$ behaves as a stable structural
-property of the imposed regime, not per-trajectory overfit.
+\textbf{(c) Cross-sequence transfer of the full belief model.}
+Fitting the \emph{entire} fault-belief estimator (the per-channel
+switching HMMs) \emph{and} $\kappa$ on one sequence and testing on a
+held-out one, the transferred detector still recovers faults
+(balanced accuracy $0.65$--$0.90$ vs.\ $0.73$--$0.95$ native) and the
+RQ-H reduction stays positive in all eight tested pairs and
+significant in five -- including cross-\emph{condition} transfers
+(rain$\rightarrow$fog $+7.8$\,pp, fog$\rightarrow$fog $+17.9$\,pp).
+The whole belief model, not merely the scalar $\kappa$, generalizes
+across trajectories, though the imposed-regime effect size can shrink
+under transfer (e.g.\ fog $9.4\rightarrow4.4$\,pp).
 
 \textbf{(d) A genuinely independent workload, multiple-testing
 corrected.} Parts (a),(d) together run 24 tests (8 sequences
@@ -616,7 +622,7 @@ reports the honest, multiple-testing-aware outcome of each check.}
 \midrule
 (a) Real coupling & Null: de-circ.\ $\Delta\approx0.0$\,pp vs.\ imposed $1.1$--$9.4$\,pp \\
 (b) Cross-seq.\ consistency & Positive all 6 traces; $t$-CI incl.\ 0 at $n{=}3$ (not generalization) \\
-(c) $\kappa$ transfer & Clean: $\le0.07$\,pp shift, sig.\ in 4/4 pairs \\
+(c) Full-model transfer & HMM+$\kappa$ trained on another sequence: sig.\ in 5/8 pairs, cross-condition too \\
 (d) Independent workload (BH-corrected) & Null in 24/24 after correction; the one nominal positive failed replication \\
 (e) Real-GT accuracy & Ranking mismatch; pseudo-GT is an internal check only \\
 \bottomrule
@@ -624,8 +630,9 @@ reports the honest, multiple-testing-aware outcome of each check.}
 \end{table}
 
 Taken together: the joint policy produces nonnegative deadline-miss
-reductions in all tested imposed-coupling conditions and $\kappa$
-transfers across sequences, but after correction and replication we
+reductions in all tested imposed-coupling conditions and the belief
+model (HMM and $\kappa$) transfers across sequences, but after
+correction and replication we
 find \emph{no} confirmed case of naturally-occurring coupling in
 un-manipulated RADIATE data. RQ-H is a proof of mechanism under a
 controlled, experimentally-imposed regime -- not evidence that such
@@ -701,8 +708,10 @@ zero -- a result that does not depend on pseudo-ground-truth
 accuracy. Five further checks stress-test rather than assume the
 coupling regime: after Benjamini--Hochberg correction and a
 replication run, zero of 24 tests support naturally-occurring
-coupling in 8 real sequences; $\kappa$ nonetheless transfers cleanly
-across sequences; and the pseudo-GT accuracy axis is an internal
+coupling in 8 real sequences; the full belief model (HMM and
+$\kappa$) nonetheless transfers across sequences, keeping the benefit
+significant in five of eight held-out pairs including cross-condition
+ones; and the pseudo-GT accuracy axis is an internal
 consistency check only, so the timing mechanism is established but
 config optimality under real task accuracy is not. The result is a
 proof of mechanism under controlled, imposed coupling, with a clearly
