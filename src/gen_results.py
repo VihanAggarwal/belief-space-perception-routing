@@ -231,7 +231,8 @@ def main():
                      f"[{r['decirc_lo_pp']:.2f},{r['decirc_hi_pp']:.2f}] | "
                      f"{'coupled' if r['measured_Pc_fault'] > r['measured_Pc_nominal'] and r['decirc_significant'] else 'null'} |")
     mt = sorted(glob.glob(str(OUT / "multitrace" / "*.json")))
-    mt = [m for m in mt if "predicted_vs_observed" not in m]
+    # only per-condition aggregation files (skip predicted_vs_observed, bh_correction, etc.)
+    mt = [m for m in mt if jload(m) and "per_sequence_reduction_pp" in (jload(m) or {})]
     if mt:
         L += ["", "## 9. Cross-sequence aggregation (Experiment B)",
               "CI over TRAJECTORIES (independent sequences), not seeds.", "",

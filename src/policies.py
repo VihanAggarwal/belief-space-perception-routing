@@ -216,6 +216,53 @@ class ThresholdPolicy:
 
 
 @dataclass
+class OracleContentionPolicy:
+    """Upper-bound baseline: knows the TRUE contention state (ground-truth regime
+    label, not a belief) exactly, every frame. Still uses the sensor belief for
+    accuracy weighting (same shared objective as Joint/Decoupled), so the ONLY
+    thing this ablates is compute-state uncertainty -- it bounds how much the
+    joint policy could gain from a perfect (rather than HMM-estimated) contention
+    read. Not a deployable policy: no real system has oracle access to a
+    competing process's future load."""
+    fm: FrontierModel
+    reliability_target: float
+    hysteresis: Hysteresis
+    allow_abstain: bool = False
+
+    def decide(self, s_belief: float, true_contended: bool) -> str:
+        p_cont = 1.0 if true_contended else 0.0
+        return _choose(self.fm, s_belief, p_cont, self.reliability_target,
+                       self.hysteresis, self.allow_abstain)
+
+
+@dataclass
+class ReactiveLatencyPolicy:
+    """Strong naive baseline: reacts ONLY to the observed latency trend (the same
+    memoryless compute signal c_instant used elsewhere), with NO sensor-fault
+    information at all -- not even for accuracy weighting (unlike Decoupled, which
+    still uses s_belief to weight expected accuracy). Feasibility is decided from
+    recent latency alone, and among feasible configs it picks the one with the
+    best NOMINAL-condition accuracy, since it has no way to know a fault is
+    present. Tests whether plain latency-reactive scheduling -- no belief about
+    sensor degradation at all -- already captures the routing benefit."""
+    fm: FrontierModel
+    reliability_target: float
+    hysteresis: Hysteresis
+    allow_abstain: bool = False
+
+    def decide(self, c_instant: float) -> str:
+        state = "contended" if c_instant >= 0.5 else "nominal"
+        pmeet = {c: self.fm.p_meet[c][state] for c in CONFIG_KEYS}
+        if self.allow_abstain and max(pmeet.values()) < self.reliability_target:
+            return self.hysteresis.step(ABSTAIN)
+        feasible = [c for c in CONFIG_KEYS if pmeet[c] >= 0.5]
+        if not feasible:
+            feasible = [max(CONFIG_KEYS, key=lambda c: pmeet[c])]
+        best = max(feasible, key=lambda c: self.fm.acc_nominal[c])
+        return self.hysteresis.step(best)
+
+
+@dataclass
 class MemorylessPolicy:
     """RQ-A1 comparison: same features and same objective, belief update bypassed. It
     consumes the instantaneous (unfiltered) sensor and compute signals with no

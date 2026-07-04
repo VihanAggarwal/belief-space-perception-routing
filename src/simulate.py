@@ -199,15 +199,7 @@ def reconfig_latency(choices: List[str], events: List[int]) -> float:
     return float(np.median(lags)) if lags else float("nan")
 
 
-def run_policy(policy, sub: Substrate, memoryless: bool = False) -> dict:
-    choices = []
-    for t in range(sub.T):
-        if memoryless:
-            ch = policy.decide(sub.s_instant[t], sub.c_instant[t])
-        else:
-            ch = policy.decide(sub.s_belief[t], sub.c_belief[t])
-        choices.append(ch)
-
+def _score_choices(choices: List[str], sub: "Substrate") -> dict:
     miss = 0
     served = 0
     acc_vals = []
@@ -235,3 +227,26 @@ def run_policy(policy, sub: Substrate, memoryless: bool = False) -> dict:
         "clearance_to_reconfig": reconfig_latency(choices, _clearance_indices(sub.fault_active)),
         "choices": choices,
     }
+
+
+def run_policy(policy, sub: Substrate, memoryless: bool = False) -> dict:
+    choices = []
+    for t in range(sub.T):
+        if memoryless:
+            ch = policy.decide(sub.s_instant[t], sub.c_instant[t])
+        else:
+            ch = policy.decide(sub.s_belief[t], sub.c_belief[t])
+        choices.append(ch)
+    return _score_choices(choices, sub)
+
+
+def run_oracle_policy(policy, sub: Substrate) -> dict:
+    """Runner for OracleContentionPolicy: decide(s_belief, true_contended)."""
+    choices = [policy.decide(sub.s_belief[t], bool(sub.state[t])) for t in range(sub.T)]
+    return _score_choices(choices, sub)
+
+
+def run_reactive_policy(policy, sub: Substrate) -> dict:
+    """Runner for ReactiveLatencyPolicy: decide(c_instant) only, no sensor info."""
+    choices = [policy.decide(sub.c_instant[t]) for t in range(sub.T)]
+    return _score_choices(choices, sub)
