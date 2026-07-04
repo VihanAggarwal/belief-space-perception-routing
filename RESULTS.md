@@ -201,6 +201,21 @@ the imposed points; magnitudes under-predicted where faults are severe (severity
 not a grid axis) -- Pearson r=0.11, MAE=1.3pp.
 See `outputs/multitrace/predicted_vs_observed.png`.
 
+## 11. Cross-sequence transfer of the full belief model (HMM + kappa)
+Fit the fault-belief HMM + kappa on the CALIB sequence, evaluate on the held-out TEST
+sequence. 5/8 transfers keep RQ-H significant; all positive.
+
+| calib -> test | kappa xfer | fault bAcc native/xfer | RQ-H native | RQ-H full transfer |
+|---|---|---|---|---|
+| fog_8_0 -> fog_6_0 | 0.78 | 0.75 / 0.65 | +9.40pp* | +4.40pp [2.34,6.46]* |
+| fog_8_1 -> fog_6_0 | 0.78 | 0.75 / 0.68 | +9.40pp* | +8.47pp [6.19,10.74]* |
+| rain_2_0 -> fog_6_0 | 0.77 | 0.75 / 0.66 | +9.40pp* | +7.80pp [6.23,9.37]* |
+| fog_6_0 -> fog_8_0 | 0.80 | 0.95 / 0.79 | +4.53pp* | +17.93pp [12.36,23.50]* |
+| rain_4_0 -> rain_2_0 | 0.80 | 0.73 / 0.74 | +2.67pp* | +2.47pp [-0.36,5.30] |
+| rain_4_0 -> rain_3_0 | 0.80 | 0.89 / 0.95 | +1.76pp* | +3.14pp [-1.38,7.66] |
+| rain_2_0 -> rain_4_0 | 0.77 | 0.88 / 0.84 | +1.13pp* | +3.53pp [1.01,6.06]* |
+| night_1_0 -> snow_1_0 | 0.81 | 0.86 / 0.90 | +2.80pp | +2.20pp [-0.22,4.62] |
+
 ## Figures (committed under each track's outputs)
 - RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`
 - RQ-A1 / RQ-A2: `outputs/<track>/phase6/`

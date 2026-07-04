@@ -258,6 +258,30 @@ def main():
               f"not a grid axis) -- Pearson r={pvo['pearson_r']:.2f}, MAE={pvo['mae_pp']:.1f}pp.",
               "See `outputs/multitrace/predicted_vs_observed.png`."]
 
+    # 11. Cross-sequence transfer of the FULL belief model (HMM + kappa)
+    xfer = sorted(glob.glob(str(OUT / "*" / "extras" / "cross_seq_calib_from_*.json")))
+    rows_x = []
+    for x in xfer:
+        d = jload(x)
+        if not d or "rqh_reduction_full_transfer_pp" not in d:
+            continue  # skip any legacy kappa-only files
+        rows_x.append(d)
+    if rows_x:
+        n_sig = sum(1 for d in rows_x if d["rqh_reduction_full_transfer_pp"]["significant"])
+        L += ["", "## 11. Cross-sequence transfer of the full belief model (HMM + kappa)",
+              "Fit the fault-belief HMM + kappa on the CALIB sequence, evaluate on the held-out TEST",
+              f"sequence. {n_sig}/{len(rows_x)} transfers keep RQ-H significant; all positive.", "",
+              "| calib -> test | kappa xfer | fault bAcc native/xfer | RQ-H native | RQ-H full transfer |",
+              "|---|---|---|---|---|"]
+        for d in rows_x:
+            c = Path(d["calib_track"]).name.replace("trackD_", "").replace("track", "")
+            t = Path(d["test_track"]).name.replace("trackD_", "").replace("track", "")
+            nat = d["rqh_reduction_native_pp"]; ful = d["rqh_reduction_full_transfer_pp"]
+            L.append(f"| {c} -> {t} | {d['kappa_transferred_from_calib_track']:.2f} | "
+                     f"{d['fault_bacc_native_hmm_on_test']:.2f} / {d['fault_bacc_transferred_hmm_on_test']:.2f} | "
+                     f"{nat['mean']:+.2f}pp{'*' if nat['significant'] else ''} | "
+                     f"{ful['mean']:+.2f}pp [{ful['lo']:.2f},{ful['hi']:.2f}]{'*' if ful['significant'] else ''} |")
+
     L += ["", "## Figures (committed under each track's outputs)",
           "- RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`",
           "- RQ-A1 / RQ-A2: `outputs/<track>/phase6/`",

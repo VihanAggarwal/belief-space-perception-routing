@@ -74,11 +74,17 @@ def load_phase_outputs(cfg: dict):
     return lab, acc_df, lat
 
 
-def build_substrate(cfg: dict, regime: str, seed: int, state_override=None) -> Substrate:
+def build_substrate(cfg: dict, regime: str, seed: int, state_override=None,
+                    sensor_hmms=None) -> Substrate:
     """If state_override (a bool contention timeline) is given, it REPLACES the synthetic
     regime schedule. Use it to drive contention from a real, independently-measured load
     signal (e.g. per-frame detection count / real latency), so the fault->contention
-    coupling is EMPIRICAL, not imposed (de-circularization; see measure_real_coupling.py)."""
+    coupling is EMPIRICAL, not imposed (de-circularization; see measure_real_coupling.py).
+
+    If sensor_hmms (a dict channel->ChannelHMM) is given, it REPLACES the per-track HMM fit
+    with a fault-belief estimator trained on a DIFFERENT sequence. This tests whether the
+    whole belief model -- not just the scalar kappa -- generalizes across sequences
+    (cross-sequence HMM transfer; see measure_cross_sequence_calibration.py)."""
     lab, acc_df, latnpz = load_phase_outputs(cfg)
     # config set is dynamic: derived from config.yaml (supports the extended frontier).
     # Set the module-level CONFIG_KEYS so policies/oracle use the same set this run.
@@ -105,7 +111,7 @@ def build_substrate(cfg: dict, regime: str, seed: int, state_override=None) -> S
     noise_std = float(cfg.get("experiments", {}).get("observation_noise_std", 0.0))
     rng_n = np.random.default_rng(30_000 + seed)
     alpha = cfg["fault_labeling"]["ema_alpha"]
-    hmms = sb.fit_all_channels(lab, cfg)
+    hmms = sensor_hmms if sensor_hmms is not None else sb.fit_all_channels(lab, cfg)
     pf_chan = []
     inst_chan = []
     for ch in ("blur", "illumination", "occlusion"):
