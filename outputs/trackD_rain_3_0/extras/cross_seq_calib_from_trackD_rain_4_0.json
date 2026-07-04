@@ -1,0 +1,18 @@
+{
+  "calib_track": "outputs/trackD_rain_4_0",
+  "test_track": "outputs/trackD_rain_3_0",
+  "kappa_native_on_test_track": 0.7901315789473684,
+  "kappa_transferred_from_calib_track": 0.7973279215288347,
+  "rqh_reduction_native_kappa_pp": {
+    "mean": 1.7610062893081762,
+    "lo": 0.47782255221712805,
+    "hi": 3.0441900263992236,
+    "significant": true
+  },
+  "rqh_reduction_transferred_kappa_pp": {
+    "mean": 1.7610062893081762,
+    "lo": 0.47782255221712805,
+    "hi": 3.0441900263992236,
+    "significant": true
+  }
+}

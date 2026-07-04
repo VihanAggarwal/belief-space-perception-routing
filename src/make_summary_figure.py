@@ -69,7 +69,7 @@ def main():
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, rotation=20, ha="right")
     ax.set_ylabel("Deadline-miss reduction:\ndecoupled − coupled (pp)")
-    ax.set_title("RQ-H: coupling reduces deadline misses where fault–contention coupling is real")
+    ax.set_title("RQ-H: coupling-aware routing reduces deadline misses\nunder controlled, fault-conditioned contention")
     ax.legend(loc="upper right", frameon=False)
     ax.margins(x=0.08)
     fig.tight_layout(pad=1.4)

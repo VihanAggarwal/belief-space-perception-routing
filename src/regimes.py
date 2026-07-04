@@ -3,8 +3,9 @@
 uncoupled: contention follows a fixed periodic schedule, INDEPENDENT of sensor
            faults. RQ-H benefit should shrink or vanish here.
 coupled:   contention correlates with detected sensor-fault onset (with a lag and
-           per-state probabilities). This is the regime where the sensor-compute
-           coupling is real and RQ-H is actually testable.
+           per-state probabilities). This EXPERIMENTALLY IMPOSES the sensor-compute
+           coupling so RQ-H is testable; whether such coupling occurs naturally is
+           tested separately (measure_real_coupling.py, measure_concurrent_workload.py).
 
 Both schedules are deterministic given a seed. The alignment scheme for the
 coupled regime: shift the fault-active signal forward by onset_to_contention_lag

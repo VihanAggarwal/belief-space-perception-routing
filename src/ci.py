@@ -21,9 +21,27 @@ def mean_ci(values, ci: float = 95.0):
 
 
 def paired_diff_ci(a, b, ci: float = 95.0):
-    """CI on the paired difference a-b (same seeds), and whether it excludes 0."""
+    """CI on the paired difference a-b (same seeds), whether it excludes 0, and the
+    two-sided paired t-test p-value computed directly from the seed-level differences."""
     a = np.asarray(a, float); b = np.asarray(b, float)
     d = a - b
     res = mean_ci(d, ci)
     res["significant"] = bool(res["lo"] > 0 or res["hi"] < 0)
+    res["p_two_sided"] = paired_p_two_sided(d)
     return res
+
+
+def paired_p_two_sided(d) -> float:
+    """Two-sided paired t-test p-value from the per-seed differences d."""
+    d = np.asarray(d, float)
+    n = len(d)
+    if n < 2:
+        return 1.0
+    sd = float(np.std(d, ddof=1))
+    if sd == 0.0:
+        # all differences identical: zero difference -> no evidence; nonzero constant
+        # difference -> degenerate (report smallest representable evidence honestly as 0)
+        return 1.0 if float(np.mean(d)) == 0.0 else 0.0
+    from scipy import stats
+    t = float(np.mean(d)) / (sd / np.sqrt(n))
+    return float(2.0 * (1.0 - stats.t.cdf(abs(t), df=n - 1)))
