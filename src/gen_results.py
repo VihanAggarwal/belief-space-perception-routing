@@ -282,6 +282,26 @@ def main():
                      f"{nat['mean']:+.2f}pp{'*' if nat['significant'] else ''} | "
                      f"{ful['mean']:+.2f}pp [{ful['lo']:.2f},{ful['hi']:.2f}]{'*' if ful['significant'] else ''} |")
 
+    # 12. Deadline sweep of all policies (reviewer #3: scope to the tight-deadline band)
+    dsw = sorted(glob.glob(str(OUT / "*" / "extras" / "oracle_deadline_sweep.json")))
+    rows_d = [jload(x) for x in dsw]
+    rows_d = [d for d in rows_d if d]
+    if rows_d:
+        L += ["", "## 12. Deadline sweep: coupling benefit is confined to the tight-deadline band",
+              "Joint-vs-decoupled reduction (pp) at multiples of each track's self-calibrated (median-C1)",
+              "deadline. The benefit peaks at 1.0x and collapses as the deadline loosens; oracle and",
+              "reactive miss also shown at 1.0x (oracle is accuracy-greedy, so NOT a miss upper bound).", "",
+              "| track | 0.8x | 0.9x | 1.0x | 1.1x | 1.2x | 1.5x | oracle@1.0 | reactive@1.0 |",
+              "|---|---|---|---|---|---|---|---|---|"]
+        for d in rows_d:
+            r = {row["mult"]: row for row in d["rows"]}
+            t = Path(d["track"]).name
+            def red(m): return f"{r[m]['coupling_reduction_pp']:+.2f}{'*' if r[m]['coupling_sig'] else ''}" if m in r else "-"
+            om = r[1.0]["oracle_miss"] if 1.0 in r else float("nan")
+            rm = r[1.0]["reactive_miss"] if 1.0 in r else float("nan")
+            L.append(f"| {t} | {red(0.8)} | {red(0.9)} | {red(1.0)} | {red(1.1)} | {red(1.2)} | {red(1.5)} | "
+                     f"{om:.3f} | {rm:.3f} |")
+
     L += ["", "## Figures (committed under each track's outputs)",
           "- RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`",
           "- RQ-A1 / RQ-A2: `outputs/<track>/phase6/`",

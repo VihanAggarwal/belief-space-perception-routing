@@ -406,12 +406,14 @@ fault frequency or correlation strength -- fog has the lowest fault
 fraction ($1.9\%$) and weakest coupling ($r{=}0.31$) yet the largest
 benefit ($+9.4$\,pp), because rare but severe fog episodes make the
 reference config infeasible exactly when contention strikes. On fog
-the joint policy trades task accuracy ($0.861$ vs.\ $0.954$,
-pseudo-GT) to cut misses; on rain, night, and soiling accuracy is
-near-matched -- a controllable operating point, not a free lunch. A
-combined on-time-utility metric $U$ (accuracy if on-time, else zero,
-averaged over all frames) is nonnegative throughout (significantly
-higher for off-road, rain, night; fog break-even, $+0.07$\,pp).
+the joint policy shows a lower pseudo-GT accuracy ($0.861$ vs.\ $0.954$)
+alongside its miss reduction; because pseudo-GT does not track real
+annotations (\S\ref{sec:rqcoupling}e), we report this as an
+internal-consistency observation only and do \emph{not} claim a supported
+accuracy--timeliness operating point. A combined on-time-utility metric
+$U$ (accuracy if on-time, else zero, averaged over all frames) is
+nonnegative throughout (significantly higher for off-road, rain, night;
+fog break-even, $+0.07$\,pp), but inherits the same pseudo-GT caveat.
 \textbf{Unlike the deadline-miss result, $U$ and all accuracy numbers
 are computed against pseudo-GT and are internal-consistency results
 only} -- \S\ref{sec:rqcoupling}e shows the pseudo-GT config ranking
@@ -474,9 +476,16 @@ reference latency), $0.1$--$1.2\,\mu$s/frame steady-state.
 
 A moving-block bootstrap ($B{=}2000$) confirms the deltas are not
 driven by a handful of frames (all six conditions exclude zero under
-temporal resampling). The fog benefit peaks exactly where the
-reference config is borderline-feasible and shrinks to n.s.\ at
-looser deadlines; sweeping $\kappa$ gives a monotonic response from
+temporal resampling). A deadline sweep ($0.7$--$1.5\times$ the self-calibrated value) on all
+ten sequences shows the benefit is confined to the borderline-feasibility
+band at the median-C1 deadline: at $1.1\times$ it retains only
+$0.07$--$0.84$ of its $1.0\times$ magnitude (fog collapses hardest,
+$9.4{\to}0.7$\,pp; the off-road segment is most robust at $0.84$), and
+below $0.9\times$ all policies meet the deadline so every delta vanishes.
+We therefore scope RQ-H to this tight-deadline regime -- the operating
+point the median-C1 rule targets -- not to general deadlines; across the
+same sweep neither the oracle nor the belief router dominates the reactive
+baseline on miss rate. Sweeping $\kappa$ gives a monotonic response from
 $0.0$\,pp at $\kappa{=}0$ to $+10.9$\,pp at $\kappa{=}1$
 (Fig.~\ref{fig:phase}: exactly zero at $\kappa{=}0$ on all seven
 tracks). A denser nine-config frontier leaves the fog result intact
@@ -682,9 +691,15 @@ generalization -- which we separately bootstrap over 3 independent
 trajectories per condition (directionally consistent across tested
 sequences, not yet $t$-significant). RADIATE frames are rectified
 left-camera only; WoodScape's temporal axis is dataset order, not
-continuous video. Absolute latencies are dev-environment (Apple
-M5/MPS); a Jetson-class study with a real shared
-perception/planning/control stack remains the natural next step.
+continuous video. Absolute latencies are dev-environment (Apple M5/MPS) driven by a
+synthetic competitor, so the study does not yet exercise real silicon,
+energy, or thermal contention as an HPEC evaluation ideally would. To
+make that gap directly closable rather than aspirational, we release a
+turnkey Jetson harness (\texttt{jetson\_harness.py}: real per-frame
+latency, throughput, \texttt{tegrastats} energy per frame, a measured
+co-running GPU competitor, and a sustained-load throttle check), so a
+single real-silicon condition can be added without changing the
+frontier or the routing code.
 
 \textbf{Future work.} A factorial/cross-coupled HMM would upgrade
 coupled-belief fusion to true joint belief-state estimation. Most

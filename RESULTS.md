@@ -216,6 +216,24 @@ sequence. 5/8 transfers keep RQ-H significant; all positive.
 | rain_2_0 -> rain_4_0 | 0.77 | 0.88 / 0.84 | +1.13pp* | +3.53pp [1.01,6.06]* |
 | night_1_0 -> snow_1_0 | 0.81 | 0.86 / 0.90 | +2.80pp | +2.20pp [-0.22,4.62] |
 
+## 12. Deadline sweep: coupling benefit is confined to the tight-deadline band
+Joint-vs-decoupled reduction (pp) at multiples of each track's self-calibrated (median-C1)
+deadline. The benefit peaks at 1.0x and collapses as the deadline loosens; oracle and
+reactive miss also shown at 1.0x (oracle is accuracy-greedy, so NOT a miss upper bound).
+
+| track | 0.8x | 0.9x | 1.0x | 1.1x | 1.2x | 1.5x | oracle@1.0 | reactive@1.0 |
+|---|---|---|---|---|---|---|---|---|
+| trackA_309 | +0.00 | +0.00 | +3.00* | +2.53* | +2.53* | +2.53* | 0.366 | 0.273 |
+| trackC | +0.00 | +0.00 | +1.56* | +0.49* | +0.49* | +0.49* | 0.364 | 0.263 |
+| trackD_fog_6_0 | +0.00 | +0.00 | +9.40* | +0.67 | +0.67 | +0.67 | 0.370 | 0.253 |
+| trackD_fog_8_0 | +0.00 | +0.00 | +4.53* | +0.93 | +0.93 | +0.93 | 0.367 | 0.260 |
+| trackD_fog_8_1 | +0.00 | +0.00 | +4.47 | +1.53* | +1.53* | +1.53* | 0.381 | 0.279 |
+| trackD_night_1_0 | +0.00 | +0.00 | +5.87* | +1.93* | +1.93* | +1.93* | 0.376 | 0.260 |
+| trackD_rain_2_0 | +0.00 | +0.00 | +2.67* | +0.33* | +0.33* | +0.33* | 0.370 | 0.276 |
+| trackD_rain_3_0 | +0.00 | +0.00 | +1.76* | +0.88* | +0.88* | +0.88* | 0.331 | 0.327 |
+| trackD_rain_4_0 | +0.00 | +0.00 | +1.13* | +0.53* | +0.53* | +0.53* | 0.337 | 0.271 |
+| trackD_snow_1_0 | +0.00 | +0.00 | +2.80 | +0.93 | +0.93 | +0.93 | 0.369 | 0.279 |
+
 ## Figures (committed under each track's outputs)
 - RQ-H per track: `outputs/<track>/phase5/rqh_centerpiece.png`
 - RQ-A1 / RQ-A2: `outputs/<track>/phase6/`
