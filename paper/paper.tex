@@ -44,33 +44,37 @@ for Deadline-Constrained Adaptive Inference}
 
 % ---------------------------------------------------------------
 \begin{abstract}
-Sensor faults and compute contention are usually modeled
-independently in deadline-constrained perception, although some
-deployments may exhibit shared environmental or workload causes. We
+Deadline-constrained perception must tolerate two failure modes
+usually modeled separately: sensor faults and compute contention. We
 present a \textbf{belief-space perception router} that maintains
-separate temporally-smoothed beliefs over sensor-fault and
-compute-contention state and \emph{couples} them via a noisy-OR term
-to select from a four-point accuracy--latency frontier
-(YOLO11x/n~@~1280/640), evaluated on three real datasets across two
-camera geometries -- TartanDrive (off-road), RADIATE (adverse
-weather), and WoodScape Soiling (fisheye) -- with five seeds and 95\%
-CIs. This is a \textbf{proof of mechanism under a controlled,
-experimentally-imposed coupling regime}: the joint policy cuts
-deadline-miss rate by $1.1$--$9.4$\,pp when that imposed coupling is
-present (significant over seeds in five of six conditions), while
-every uncoupled control and the fault-free trajectory yield exactly
-$0.0$\,pp. We then directly test whether this coupling occurs in
-un-manipulated data across eight real RADIATE sequences and three
-independent load proxies: after Benjamini--Hochberg correction and a
-replication run, zero of 24 tests support naturally-occurring
-coupling -- an honest null we report as the method's central open
-premise, together with the released pipeline any deployment can use
-to test its own traces. Deadline-miss
-conclusions do not depend on pseudo-ground-truth accuracy labels;
-conclusions involving accuracy and combined utility should be read as
-internal-consistency results only, since a real-annotation validation
-shows the pseudo-GT config ranking does not match ground truth. All
-code, data splits, and results are released.\footnote{\url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
+temporally-smoothed beliefs over sensor-fault and compute-contention
+state and \emph{couples} them via a noisy-OR term to route over a
+four-point accuracy--latency frontier (YOLO11x/n~@~1280/640) on three
+real datasets across two camera geometries -- TartanDrive (off-road),
+RADIATE (adverse weather), and WoodScape Soiling (fisheye), five seeds
+and 95\% CIs. \textbf{Where fault and contention are coupled the router
+delivers a clear, well-controlled gain}: it cuts deadline-miss rate by
+$1.1$--$9.4$\,pp (significant over seeds in five of six conditions),
+while every uncoupled control and the fault-free trajectory are exactly
+$0.0$\,pp. The gain is \textbf{portable, not per-trace}: the entire
+belief model (HMM and $\kappa$) trained on one sequence transfers to a
+held-out one, staying significant in five of eight pairs including
+cross-\emph{condition} transfers (rain$\rightarrow$fog $+7.8$\,pp);
+$\kappa$ drives a clean monotonic response (exactly zero at
+$\kappa{=}0$); the belief estimator lifts fault-detection balanced
+accuracy by $3$--$8$ points; and routing costs ${\approx}19\,\mu$s/frame,
+negligible against inference. We then scope the result honestly: the
+benefit concentrates at the tight median-latency deadline, and --
+testing whether such coupling arises \emph{without} manipulation across
+eight RADIATE sequences and three independent load proxies -- after
+Benjamini--Hochberg correction none of 24 tests show natural coupling,
+so we release the full falsification pipeline for any deployment
+(notably a shared-SoC/Jetson stack, where contention is most likely to
+couple) to test its own regime. Deadline-miss conclusions are
+independent of pseudo-ground-truth; accuracy and utility numbers are
+internal-consistency only, since a real-annotation check shows the
+pseudo-GT config ranking differs from ground truth. All code, data
+splits, and results are released.\footnote{\url{https://github.com/VihanAggarwal/belief-space-perception-routing}}
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -105,18 +109,22 @@ select inference paths from a budget
 work, to our knowledge, estimates both beliefs and exploits their
 coupling. This paper (i) formulates the coupled belief state via
 per-channel switching HMMs and a two-state compute HMM fit without
-task-specific labels; (ii) derives a noisy-OR joint policy with a
-coupling coefficient $\kappa$ fit on held-out calibration draws;
-(iii) evaluates across three real datasets, two camera geometries,
-and controlled injection, with five seeds and 95\% $t$-interval CIs,
-reporting null findings plainly; and (iv) directly interrogates the
-coupling assumption itself with five checks -- measured coupling via
-three independent load proxies under a multiple-testing correction,
-cross-sequence transfer of the full belief model (HMM and $\kappa$), an
-oracle/reactive-baseline bound, and a real-GT accuracy-axis
-validation -- rather than only exhibiting the mechanism under a
-constructed regime. We release a fully reproducible, config-driven
-pipeline.\footnotemark[1]
+task-specific labels, and (ii) a noisy-OR joint policy with a coupling
+coefficient $\kappa$ fit on held-out calibration draws. Empirically,
+(iii) wherever fault and contention are coupled the router delivers a
+real and \emph{portable} gain: it cuts deadline-miss by $1.1$--$9.4$\,pp
+across three datasets and two camera geometries, the entire belief model
+(HMM and $\kappa$) transfers to held-out sequences and even across
+weather conditions, the belief estimator improves fault detection by
+$3$--$8$ points, and routing costs ${\approx}19\,\mu$s/frame -- all with
+falsification controls at exactly zero. Finally, (iv) we stress-test the
+single assumption the gain rests on -- that fault and contention
+actually co-occur -- with five checks (a multiple-testing-corrected
+measurement on real data across three independent load proxies,
+cross-sequence transfer, oracle/reactive baselines, and a real-GT
+accuracy validation), reporting the null honestly and releasing the full
+reproducible pipeline so any deployment can test its own
+regime.\footnotemark[1]
 
 Fig.~\ref{fig:summary} previews the headline result: the joint policy
 reduces deadline-miss rate when the experimentally-imposed coupling
@@ -664,15 +672,17 @@ matches the noisy-OR, the supported claim is that \emph{using fault
 belief to anticipate contention} helps -- not that the particular
 noisy-OR belief-fusion algorithm is itself the advance.
 
-\textbf{What the paper does and does not establish.} We could not
-demonstrate the coupling premise in ordinary data (zero of 24
-corrected tests). The contributions are (i) a proof of mechanism --
-when coupling exists, a router that exploits it beats one that
-cannot, with a falsification control at exactly zero -- and (ii) a
-reusable, released evaluation pipeline (imposed-schedule substrate,
-de-circularization, independent-workload probe, multiple-testing
-protocol) that any deployment can run on its own traces to test
-whether \emph{its} regime is coupled before adopting the method.
+\textbf{What the paper does and does not establish.} It establishes,
+positively, (i) a real and portable mechanism -- where coupling exists,
+a router that exploits it beats one that cannot by $1.1$--$9.4$\,pp, the
+full belief model transfers across sequences and even weather
+conditions, at negligible cost, with a falsification control at exactly
+zero -- and (ii) a reusable, released evaluation pipeline
+(imposed-schedule substrate, de-circularization, independent-workload
+probe, multiple-testing protocol). What it does \emph{not} establish is
+that the coupling premise holds in un-manipulated data: zero of 24
+corrected tests show natural coupling, which we report plainly and equip
+any deployment to test on its own traces before adopting the method.
 
 \textbf{Limitations.} The evaluation is offline and trace-driven,
 with a two-state, non-thermal contention model, evaluated only on an
@@ -728,11 +738,11 @@ $\kappa$) nonetheless transfers across sequences, keeping the benefit
 significant in five of eight held-out pairs including cross-condition
 ones; and the pseudo-GT accuracy axis is an internal
 consistency check only, so the timing mechanism is established but
-config optimality under real task accuracy is not. The result is a
-proof of mechanism under controlled, imposed coupling, with a clearly
-scoped open question -- whether such coupling arises naturally -- and
-a reproducible pipeline built to let any deployment answer that
-question on its own traces.
+config optimality under real task accuracy is not. The result is a portable, near-zero-cost coupling
+mechanism with clean falsification controls and a reproducible
+pipeline -- and one clearly scoped open question, whether the coupling
+arises naturally, that the same pipeline lets any deployment answer on
+its own traces.
 
 % ---------------------------------------------------------------
 \bibliographystyle{IEEEtran}
